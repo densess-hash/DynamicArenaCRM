@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>Ori-On Dynamic CRM</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+
+<style>
+:root{
+  --ori-green:#0e3733;
+  --ori-green-dark:#081c1b;
+  --ori-gold:#c7a468;
+  --ori-gold-light:#e0c78b;
+  --text-light:#ddd;
+  --text-bright:#fff;
+  --panel-dark:#101f1e;
+}
+body{background:linear-gradient(135deg,#0b2926 0%,#04100f 100%);color:var(--text-light);font-family:Inter,system-ui,"Segoe UI",Roboto;height:100vh;overflow:hidden;}
+.layout{display:flex;height:100%;}
+.sidebar{width:240px;background:linear-gradient(180deg,var(--ori-green) 0%,var(--ori-green-dark) 100%);box-shadow:2px 0 6px rgba(0,0,0,.35);padding:1rem;overflow-y:auto;}
+.brand{font-weight:700;font-size:1.4rem;color:var(--ori-gold);margin-bottom:1rem;position:relative;overflow:hidden;}
+@keyframes shine{0%{left:-75%;}50%{left:125%;}100%{left:125%;}}
+.brand::after,.toolbar h4::after,.btn-gold::after{animation:shine 2.8s 1;}
+.entity-item{padding:.55rem .8rem;border-radius:6px;cursor:pointer;color:#ccc;transition:all .2s;}
+.entity-item:hover{background:rgba(255,255,255,.06);color:var(--ori-gold-light);}
+.entity-item.active{border-left:3px solid var(--ori-gold-light);background:rgba(255,255,255,.07);color:var(--ori-gold);font-weight:600;}
+.main{flex:1;display:flex;flex-direction:column;padding:1rem;overflow:hidden;}
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;}
+.toolbar h4{color:var(--ori-gold-light);position:relative;overflow:hidden;}
+.toolbar h4::after{content:"";position:absolute;top:0;left:-75%;width:50%;height:100%;background:linear-gradient(120deg,rgba(255,255,255,.18),rgba(255,255,255,0));animation:shine 6s;}
+.btn-gold{background:linear-gradient(90deg,var(--ori-gold),var(--ori-gold-light));color:#08221f;border:none;font-weight:600;box-shadow:0 2px 6px rgba(0,0,0,.4);transition:transform .15s;position:relative;overflow:hidden;}
+.btn-gold:hover{transform:translateY(-1px);}
+.btn-gold::after{content:"";position:absolute;top:0;left:-75%;width:50%;height:100%;background:linear-gradient(120deg,rgba(255,255,255,.35),rgba(255,255,255,0));animation:shine 5s;}
+.btn-outline-light{border:1px solid var(--ori-gold-light);color:var(--ori-gold-light);background:rgba(255,255,255,.05);}
+.btn-outline-light:hover{background:var(--ori-gold-light);color:var(--ori-green-dark);}
+.table-wrap{overflow:auto;background:linear-gradient(180deg,rgba(0,0,0,.45),rgba(0,0,0,.7));border-radius:10px;border:1px solid rgba(255,255,255,.07);box-shadow:inset 0 0 25px rgba(0,0,0,.45);flex:1;}
+.card canvas{background:radial-gradient(circle at center, rgba(255,255,255,.03), rgba(0,0,0,.1));border-radius:10px;padding:6px;}
+.card{border:1px solid rgba(255,255,255,.06);background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.15));box-shadow:0 4px 10px rgba(0,0,0,.45);}
+table{width:100%;border-collapse:collapse;}
+thead th{background:linear-gradient(180deg,rgba(8,27,26,.95),rgba(8,27,26,.9));color:var(--text-bright);font-weight:600;border-bottom:1px solid rgba(255,255,255,.15);position:sticky;top:0;z-index:5;}
+tbody td{color:var(--text-light);font-size:.9rem;border-bottom:1px solid rgba(255,255,255,.05);}
+tbody tr:hover{background:rgba(199,164,104,.1);}
+.modal-content{background:linear-gradient(180deg,var(--panel-dark),#04100f);color:#fff;border:1px solid rgba(255,255,255,.08);box-shadow:0 8px 25px rgba(0,0,0,.6);}
+.modal-title{color:var(--ori-gold);}
+.form-label{font-weight:500;color:var(--ori-gold-light);}
+.form-control{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:var(--text-bright);}
+.form-control:focus{border-color:var(--ori-gold-light);box-shadow:0 0 0 0.2rem rgba(199,164,104,.25);}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:4px;}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.25);}
+.shine-once::after {animation: shine 2.8s 1;}
+.fade-in {animation: fadeIn .8s ease-out;}
+@keyframes fadeIn {from {opacity:0; transform:translateY(10px);} to {opacity:1; transform:translateY(0);}}
+.chart-glow {position:absolute; top:0; left:0; right:0; bottom:0; background:radial-gradient(circle at center, rgba(199,164,104,.15), transparent 70%); opacity:0; transition:opacity .4s ease-in-out;}
+.card:hover .chart-glow { opacity:1; }
+</style>
+
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">Ori-On CRM</div>
+    <div id="entity-list"></div>
+  </aside>
+
+  <main class="main">
+    <div class="toolbar">
+      <h4 id="entity-title">Select an entity</h4>
+      <div>
+        <button id="refresh-btn" class="btn btn-outline-light btn-sm">Refresh</button>
+        <button id="new-btn" class="btn btn-gold btn-sm">+ New</button>
+        <button id="toggle-advanced" class="btn btn-outline-light btn-sm ml-2">⚙️ Advanced</button>
+      </div>
+    </div>
+
+    <div id="filter-chips" class="mb-2"></div>
+    <div id="advanced-panel" class="collapse mb-3"></div>
+    <div id="dashboard-area" class="row"></div>
+
+    <div id="content-area" class="table-wrap">
+      <table class="table table-sm table-hover mb-0">
+        <thead id="table-head"></thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </main>
+  <?!= include('Arena_ui'); ?>
+
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="recordModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 id="modalTitle" class="modal-title">Edit Record</h5>
+        <button type="button" class="close text-light" data-dismiss="modal"><span>&times;</span></button>
+      </div>
+      <div class="modal-body"><form id="recordForm"></form></div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-light" data-dismiss="modal">Close</button>
+        <button id="saveBtn" class="btn btn-gold">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+
+<script>
+/* === GLOBAL STATE === */
+let currentEntity = null, headers = [], rows = [];
+let activeCharts = [];
+let globalFilters = [];
+let tileConfigs = [];
+const MAX_TILES = 6;
+const STORAGE_KEY = 'ori_on_dashboard_config_v1';
+
+/* === INIT === */
+window.onload = () => {
+  loadEntities();
+  document.getElementById("refresh-btn").onclick = () => { if(currentEntity) loadEntity(currentEntity); };
+  document.getElementById("new-btn").onclick = () => openForm();
+  document.getElementById("saveBtn").onclick = saveForm;
+  const advBtn = document.getElementById('toggle-advanced');
+  if (advBtn) advBtn.onclick = toggleAdvancedPanel;
+  loadTileConfigs();
+};
+
+/* === SIDEBAR === */
+function loadEntities(){
+  google.script.run.withSuccessHandler(renderEntities).getEntities();
+}
+function renderEntities(list){
+  const c = document.getElementById("entity-list");
+  c.innerHTML = "";
+  list.forEach(e=>{
+    const div = document.createElement("div");
+    div.className="entity-item";
+    div.textContent=e;
+    div.onclick=()=>{
+      document.querySelectorAll(".entity-item").forEach(i=>i.classList.remove("active"));
+      div.classList.add("active");
+      loadEntity(e);
+    };
+    c.appendChild(div);
+  });
+
+  // --- Add Arena tab, same level as Search ---
+  const arenaDiv = document.createElement("div");
+  arenaDiv.className = "entity-item";
+  arenaDiv.textContent = "Arena";
+  arenaDiv.onclick = () => {
+    document.querySelectorAll(".entity-item").forEach(i => i.classList.remove("active"));
+    arenaDiv.classList.add("active");
+
+    if (window.Arena && typeof window.Arena.show === "function") {
+      window.Arena.show();                      // show the Arena skeleton
+    } else {
+      console.warn("Arena module not yet loaded");
+    }
+
+    const t = document.getElementById("entity-title");
+    if (t) t.textContent = "Arena";
+  };
+  c.appendChild(arenaDiv);
+
+
+
+  // Add Search tab
+  const searchDiv = document.createElement("div");
+  searchDiv.className = "entity-item";
+  searchDiv.textContent = "Search";
+  searchDiv.onclick = () => {
+    document.querySelectorAll(".entity-item").forEach(i=>i.classList.remove("active"));
+    searchDiv.classList.add("active");
+    openSearchPage();
+    document.getElementById('entity-title').textContent = 'Search';
+  };
+  c.appendChild(searchDiv);
+
+
+}
+
+
+
+
+
+
+/* === ENTITY LOADER === */
+function loadEntity(name) {
+  destroyCharts();
+  document.getElementById('dashboard-area').innerHTML = '';
+  document.getElementById('filter-chips').innerHTML = '';
+
+  if (name === 'Dashboard') {
+    currentEntity = 'Dashboard';
+    document.getElementById('entity-title').textContent = 'Dashboard';
+    renderDefaultDashboard();
+    buildAdvancedPanel();
+    return;
+  }
+
+  currentEntity = name;
+  document.getElementById('entity-title').textContent = name;
+  google.script.run.withSuccessHandler(h=>{
+    headers=h||[];
+    google.script.run.withSuccessHandler(d=>{
+      rows=d||[];
+      renderTable();
+      document.getElementById('dashboard-area').innerHTML = '';
+      document.getElementById('advanced-panel').classList.remove('show');
+    }).getData(name);
+  }).getHeaders(name);
+}
+
+
+
+
+
+
+function openArenaPage() {
+  // Hide everything else
+  document.querySelectorAll(".section").forEach(s => s.classList.add("hidden"));
+
+  // Just reuse Search behaviour
+  if (typeof openSearchPage === "function") {
+    openSearchPage();     // shows the same interface
+  } else {
+    console.warn("openSearchPage not found");
+  }
+
+  // Optional: update title
+  document.getElementById("entity-title").textContent = "Arena";
+}
+
+
+
+
+
+
+
+
+/* === DEFAULT DASHBOARD (6 tiles) === */
+function renderDefaultDashboard(){
+  google.script.run.withSuccessHandler(metrics=>{
+    const area = document.getElementById('dashboard-area');
+    area.innerHTML = '';
+    if (metrics.hiresPerRecruiter) addMetricChart('Hires per Recruiter', metrics.hiresPerRecruiter, 'doughnut');
+    if (metrics.candidatesPerCompany) addMetricChart('Candidates per Company', metrics.candidatesPerCompany, 'doughnut');
+    if (metrics.jobsByStatus) addMetricChart('Jobs by Status', metrics.jobsByStatus, 'bar');
+    if (metrics.avgSalary) addKpiCard('Average Expected Salary', `$${Number(metrics.avgSalary).toLocaleString()}`);
+    if (metrics.candidatesByCity) addMetricChart('Candidates by City', topN(metrics.candidatesByCity, 8), 'bar');
+    if (metrics.openJobsByOwner) addMetricChart('Open Jobs by Owner', topN(metrics.openJobsByOwner, 8), 'bar');
+  }).getDashboardMetrics();
+}
+function addMetricChart(title, obj, type){
+  const div = document.createElement('div');
+  div.className = 'col-md-4 mb-3';
+  const id = 'chart-' + Math.random().toString(36).slice(2,7);
+  const labels = Object.keys(obj);
+  const data = Object.values(obj);
+  div.innerHTML = `
+    <div class="card p-2 text-center">
+      <h6 class="card-title mb-2" style="color:var(--ori-gold-light);">${title}</h6>
+      <canvas id="${id}" height="140"></canvas>
+    </div>`;
+  document.getElementById('dashboard-area').appendChild(div);
+  const chart = new Chart(document.getElementById(id), {
+    type: type || 'bar',
+    data: { labels, datasets: [{ data, borderColor: 'rgba(199,164,104,0.95)', backgroundColor: [
+      'rgba(199,164,104,0.6)','rgba(224,199,139,0.6)','rgba(255,230,180,0.55)',
+      'rgba(180,150,90,0.5)','rgba(130,100,50,0.5)','rgba(110,90,45,0.5)','rgba(80,60,40,0.5)'
+    ], fill: type==='line', tension:.35 }]},
+    options: { plugins: { legend: { display: false } }
+// 🔸 removed interactivity (static overview chart)
+}
+  });
+  activeCharts.push(chart);
+}
+function addKpiCard(title, value){
+  const div = document.createElement('div');
+  div.className = 'col-md-4 mb-3';
+  div.innerHTML = `<div class="card p-3 text-center">
+    <h6 class="card-title mb-2" style="color:var(--ori-gold-light);">${title}</h6>
+    <h3 class="text-light">${value}</h3></div>`;
+  document.getElementById('dashboard-area').appendChild(div);
+}
+function topN(obj, n){
+  const entries = Object.entries(obj).sort((a,b)=>b[1]-a[1]);
+  const top = entries.slice(0,n);
+  const others = entries.slice(n);
+  if (others.length){
+    const sum = others.reduce((s, [,v])=>s+v,0);
+    top.push(['Others', sum]);
+  }
+  return Object.fromEntries(top);
+}
+
+/* === ADVANCED MODE === */
+function toggleAdvancedPanel(){ document.getElementById('advanced-panel').classList.toggle('show'); }
+function buildAdvancedPanel(){
+  const panel = document.getElementById('advanced-panel'); if (!panel) return;
+  if (!Array.isArray(tileConfigs) || tileConfigs.length !== MAX_TILES) {
+    tileConfigs = Array.from({length: MAX_TILES}, () => ({
+      entity: 'Candidates', dimension: 'CandidateStatus', measure: 'count', chart: 'auto', filters: []
+    }));
+  }
+  panel.innerHTML = `
+    <div class="card p-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="text-gold">Advanced Mode</div>
+        <div>
+          <button class="btn btn-outline-light btn-sm mr-2" onclick="savePreset()">Save Preset</button>
+          <button class="btn btn-outline-light btn-sm" onclick="loadPreset()">Load Preset</button>
+        </div>
+      </div>
+      <div class="row" id="adv-tiles"></div>
+    </div>`;
+  const grid = document.getElementById('adv-tiles'); grid.innerHTML = '';
+  tileConfigs.forEach((cfg,i)=>{
+    const card = document.createElement('div'); card.className='col-md-4 mb-3';
+    card.innerHTML=`
+      <div class="card p-2">
+        <div class="small mb-2" style="color:#ccc;">Tile ${i+1}</div>
+        <div class="form-group">
+          <label class="form-label">Entity</label>
+          <select class="form-control" onchange="onTileEntityChange(${i}, this.value)"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Dimension</label>
+          <select class="form-control" onchange="onTileFieldChange(${i}, 'dimension', this.value)"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Measure</label>
+          <select class="form-control" onchange="onTileFieldChange(${i}, 'measure', this.value)">
+            <option value="count">Count</option><option value="sum">Sum</option><option value="avg">Average</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Chart</label>
+          <select class="form-control" onchange="onTileFieldChange(${i}, 'chart', this.value)">
+            <option value="auto">Auto</option><option value="doughnut">Doughnut</option><option value="bar">Bar</option><option value="line">Line</option>
+          </select>
+        </div>
+        <button class="btn btn-gold btn-sm" onclick="renderTile(${i})">Run</button>
+        <div class="mt-2 small" id="tile-caption-${i}" style="color:#aaa;"></div>
+        <canvas id="tile-canvas-${i}" height="140" class="mt-2"></canvas>
+      </div>`;
+    grid.appendChild(card);
+    populateTileEntity(i, cfg.entity);
+  });
+}
+function populateTileEntity(i, entity){
+  google.script.run.withSuccessHandler(entities=>{
+    const selects = document.querySelectorAll('#adv-tiles .form-group select');
+    const entSel = selects[i*4+0]; const dimSel = selects[i*4+1];
+    entSel.innerHTML = entities.map(e=>`<option ${e===entity?'selected':''}>${e}</option>`).join('');
+    tileConfigs[i].entity = entity;
+    google.script.run.withSuccessHandler(h=>{
+      dimSel.innerHTML = h.map(f=>`<option ${f===tileConfigs[i].dimension?'selected':''}>${f}</option>`).join('');
+    }).getHeaders(entity);
+    selects[i*4+2].value = tileConfigs[i].measure;
+    selects[i*4+3].value = tileConfigs[i].chart;
+  }).getEntities();
+}
+function onTileEntityChange(i, val){
+  tileConfigs[i].entity = val;
+  google.script.run.withSuccessHandler(h=>{
+    const dimSel = document.querySelectorAll('#adv-tiles .form-group select')[i*4+1];
+    dimSel.innerHTML = h.map(f=>`<option>${f}</option>`).join('');
+    tileConfigs[i].dimension = h[0] || '';
+  }).getHeaders(val);
+}
+function onTileFieldChange(i, field, val){ tileConfigs[i][field] = val; }
+function renderTile(i){
+  const cfg = tileConfigs[i];
+  const filters = globalFiltersToBackend();
+  google.script.run.withSuccessHandler(obj=>{ drawTileChart(i, cfg, obj); })
+    .aggregateData(cfg.entity, cfg.dimension, cfg.measure, filters);
+}
+function drawTileChart(i, cfg, obj){
+  const id = `tile-canvas-${i}`; const ctx = document.getElementById(id); if (!ctx) return;
+  if (ctx._chart) { try{ctx._chart.destroy();}catch(e){} }
+  const labels = Object.keys(obj), data = Object.values(obj);
+  if (!labels.length){ ctx.parentElement.querySelector(`#tile-caption-${i}`).innerHTML = `<span class="text-muted">No data with current filters.</span>`; return; }
+  let type = cfg.chart; if (type==='auto') type = (labels.length<=8)?'doughnut':'bar';
+  const chart = new Chart(ctx, { type, data: { labels, datasets:[{ data, borderColor:'rgba(199,164,104,0.95)',
+      backgroundColor:['rgba(199,164,104,0.6)','rgba(224,199,139,0.6)','rgba(255,230,180,0.55)','rgba(180,150,90,0.5)','rgba(130,100,50,0.5)','rgba(110,90,45,0.5)','rgba(80,60,40,0.5)'], fill:type==='line', tension:.35 }]},
+    options:{ plugins:{legend:{display:(type!=='bar')}}, onClick:(_,els)=>{ if(!els.length) return; const idx=els[0].index; const clicked=labels[idx]; addChip({ field: cfg.dimension, op:'=', value: clicked, label:`${cfg.dimension}: ${clicked}` }); rerenderAllTiles(); } }
+  });
+  ctx._chart = chart;
+  document.getElementById(`tile-caption-${i}`).textContent = `Entity: ${cfg.entity} | Dim: ${cfg.dimension} | Measure: ${cfg.measure}`;
+}
+function rerenderAllTiles(){ for (let i=0;i<tileConfigs.length;i++) renderTile(i); }
+
+/* === CHIPS === */
+function addChip(chip){ globalFilters.push(chip); renderChips(); rerenderAllTiles(); }
+function removeChip(idx){ globalFilters.splice(idx,1); renderChips(); rerenderAllTiles(); }
+function clearChips(){ globalFilters = []; renderChips(); rerenderAllTiles(); }
+function renderChips(){
+  const bar = document.getElementById('filter-chips'); if (!bar) return;
+  if (!globalFilters.length){ bar.innerHTML=''; return; }
+  bar.innerHTML = `
+    ${globalFilters.map((c,i)=>`
+      <span class="badge badge-pill" style="background:linear-gradient(90deg,var(--ori-gold),var(--ori-gold-light));color:#08221f;margin-right:.5rem;">
+        ${c.label || `${c.field} ${c.op} ${c.value}`} <a href="#" onclick="removeChip(${i})" style="color:#08221f;margin-left:.25rem;">×</a>
+      </span>`).join('')}
+    <a href="#" class="ml-2" onclick="clearChips()">Clear all</a>`;
+}
+function globalFiltersToBackend(){
+  return globalFilters.filter(c=>c.field && c.op).map(c => ({ field:c.field, op:c.op, value:c.value }));
+}
+
+/* === PRESETS === */
+function savePreset(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(tileConfigs)); alert('Preset saved locally.'); }
+function loadPreset(){ const raw = localStorage.getItem(STORAGE_KEY); if (!raw) { alert('No preset found'); return; }
+  try { tileConfigs = JSON.parse(raw); buildAdvancedPanel(); rerenderAllTiles(); } catch(e){ alert('Failed to load preset'); } }
+function loadTileConfigs(){ try { const raw=localStorage.getItem(STORAGE_KEY); if (raw) tileConfigs = JSON.parse(raw); } catch(e){} }
+
+/* === TABLE === */
+function renderTable(){
+  const th=document.getElementById("table-head"), tb=document.getElementById("table-body");
+  if(!headers.length){ th.innerHTML="<tr><th>No headers</th></tr>"; tb.innerHTML=""; return; }
+  th.innerHTML="<tr>"+headers.map(h=>`<th>${h}</th>`).join("")+"<th>Actions</th></tr>";
+  if(!rows.length){ tb.innerHTML=`<tr><td colspan="${headers.length+1}" class="text-center text-muted">No records</td></tr>`; return; }
+  tb.innerHTML=rows.map((r,i)=>`<tr>${headers.map(h=>`<td>${r[h]??""}</td>`).join("")}
+    <td><button class="btn btn-sm btn-gold" onclick="openForm(${i})">Edit</button></td></tr>`).join("");
+}
+
+/* === FORM === */
+function openForm(index){
+  const form=document.getElementById("recordForm");
+  form.innerHTML="";
+  const rec=(typeof index==="number")?rows[index]:{};
+  headers.forEach(h=>{
+    const div=document.createElement("div");div.className="form-group";
+    const label=document.createElement("label");label.className="form-label";label.textContent=h;
+    const input=document.createElement("input");input.className="form-control";input.name=h;input.value=rec[h]||"";
+    div.appendChild(label);div.appendChild(input);form.appendChild(div);
+  });
+  $("#recordModal").modal("show");
+}
+function saveForm(){
+  const form=document.getElementById("recordForm");
+  const fd=new FormData(form), obj={}; fd.forEach((v,k)=>obj[k]=v);
+  google.script.run.withSuccessHandler(()=>{ $("#recordModal").modal("hide"); if(currentEntity) loadEntity(currentEntity); }).saveData(currentEntity,obj);
+}
+
+/* === CHART CLEANUP === */
+function destroyCharts(){ activeCharts.forEach(c=>{ try{c.destroy();}catch(e){} }); activeCharts = []; }
+</script>
+
+<?!= include('Search_js') ?>
+<?!= include('ArenaStyles'); ?>
+<?!= include('Arena_js'); ?>
+<?!= include('Arena2_js'); ?>
+
+
+</body>
+</html>
