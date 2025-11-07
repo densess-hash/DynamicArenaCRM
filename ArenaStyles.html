@@ -1,0 +1,248 @@
+<style>
+/* === ARENA STYLES – Phase 5A === */
+.arena { display:none; flex-direction:column; background:linear-gradient(135deg,#0b2926,#04100f);
+  color:#eee; height:100vh; width:100vw; overflow:hidden; position:fixed; top:0;left:0; z-index:9999;}
+.arena.hidden{display:none!important;}
+.arena-header{display:flex;justify-content:space-between;align-items:center;
+  padding:0.8rem 1.2rem;background:rgba(8,27,26,0.95);border-bottom:1px solid rgba(255,255,255,0.1);}
+.arena-header h2{color:var(--ori-gold-light,#e0c78b);margin:0;}
+.arena-actions-top{display:flex;gap:.5rem;align-items:center;}
+.arena-close{background:none;border:1px solid rgba(255,255,255,0.15);padding:.25rem .5rem;border-radius:8px;color:#ccc;font-size:1.1rem;cursor:pointer;}
+.arena-close:hover{color:var(--ori-gold,#c7a468);border-color:var(--ori-gold,#c7a468);}
+
+.arena-container{flex:1;display:grid;grid-template-columns:1fr 1.5fr 0.9fr;gap:1rem;
+  padding:1rem 1.2rem;overflow-y:auto;}
+.arena-card{background:linear-gradient(180deg,rgba(255,255,255,0.03),rgba(0,0,0,0.25));
+  border:1px solid rgba(255,255,255,0.08);border-radius:12px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.4);padding:1rem 1.2rem;min-height:72vh;transition:transform .2s;}
+.arena-card h3{color:var(--ori-gold-light,#e0c78b);font-size:1.05rem;margin-bottom:.8rem;}
+.badge-skill{background:rgba(199,164,104,0.15);border:1px solid rgba(199,164,104,0.4);
+  color:#e0c78b;padding:0.25rem 0.5rem;border-radius:6px;}
+.fade-in{animation:fadeIn .5s ease-in;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+
+/* Loader overlay */
+.arena-loader{position:absolute;top:60px;left:0;right:0;text-align:center;
+  color:#e0c78b;font-weight:600;letter-spacing:0.5px;}
+.hidden{display:none!important;}
+
+/* Middle column tabs */
+.nav-tabs .nav-link{padding:.35rem .6rem;}
+.tab-content{padding-top:.75rem;}
+
+/* 3-column dense grid */
+.arena-grid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap:.55rem .75rem;
+}
+.arena-field{display:flex;flex-direction:column;gap:.25rem;}
+.arena-field label{font-size:.78rem;color:#e0c78b;margin:0;font-weight:600;opacity:.9;}
+.arena-field .view-value{font-size:.9rem;color:#f3f3f3;min-height:29px;padding:.38rem .5rem;
+  border:1px solid rgba(255,255,255,0.08);border-radius:8px;background:rgba(255,255,255,0.04);}
+.arena-field .edit-input{font-size:.9rem;color:#fff;background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:.38rem .5rem;}
+.arena-field .edit-input:focus{outline:none;box-shadow:0 0 0 0.2rem rgba(199,164,104,.25);
+  border-color:var(--ori-gold,#c7a468);}
+.arena-note.textarea .edit-input{min-height:70px;resize:vertical}
+
+
+
+/* Responsive tweaks */
+@media (max-width:1280px){
+  .arena-container{grid-template-columns:1fr 1.4fr 1fr;}
+  .arena-grid{grid-template-columns: repeat(2, minmax(0,1fr));}
+}
+@media (max-width:992px){
+  .arena-container{grid-template-columns:1fr;}
+  .arena-grid{grid-template-columns:1fr;}
+}
+
+
+
+/* === Arena Topbar === */
+/* === Arena Topbar === */
+.arena-topbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:.75rem;
+  padding:.5rem 1rem;
+  background:linear-gradient(90deg,#0b2926,#08221f);
+  border-bottom:1px solid rgba(255,255,255,.08);
+  position:sticky;top:0;z-index:20;
+}
+.arena-nav-left, .arena-nav-right{
+  display:flex;
+  align-items:center;
+  gap:.5rem;
+}
+.arena-counter{color:var(--ori-gold-light);font-weight:600;}
+
+
+
+
+/* Gold select styling */
+.gold-select {
+  background: rgba(255,255,255,0.06);
+  color: #f0e0b6;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: .38rem .5rem;
+}
+.gold-select option {
+  background-color: #0b2926;
+  color: #e0c78b;
+}
+.gold-select:focus {
+  outline: none;
+  border-color: var(--ori-gold,#c7a468);
+  box-shadow: 0 0 0 0.2rem rgba(199,164,104,.25);
+}
+
+
+/* === ARENA 7A TIMELINE STYLES === */
+.timeline-wrap{
+  max-height:75vh;
+  overflow-y:auto;
+  padding-right:.5rem;
+}
+.timeline-item{
+  border-left:3px solid var(--ori-on-gold,#c7a468);
+  margin:.6rem 0;
+  padding:.4rem .8rem;
+  background:rgba(255,255,255,0.04);
+  border-radius:6px;
+  position:relative;
+}
+.timeline-item::before{
+  content:"";
+  position:absolute;
+  left:-7px;
+  top:.6rem;
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  background:var(--ori-on-gold,#c7a468);
+}
+.timeline-item .t-type{
+  font-weight:600;
+  color:var(--ori-on-gold,#c7a468);
+  margin-right:.3rem;
+}
+.timeline-item .t-date{
+  font-size:.82rem;
+  color:#ccc;
+  float:right;
+}
+.timeline-item i{
+  color:#ddd;
+  font-style:italic;
+  font-size:.9rem;
+}
+.timeline-item b{
+  color:#fff;
+}
+</style>
+
+
+<style>
+/* === Arena2 Phase 7B extras === */
+.a2-subtle{ color:#cdbb8d; opacity:.9; margin-bottom:.5rem; }
+
+.a2-radio-group{ display:flex; flex-wrap:wrap; gap:.35rem .6rem; }
+.a2-radio{ display:inline-flex; align-items:center; gap:.4rem; padding:.28rem .55rem;
+  border:1px solid rgba(199,164,104,.45); border-radius:999px;
+  background:rgba(199,164,104,.07); cursor:pointer; user-select:none; }
+.a2-radio input{ accent-color:#c7a468; } /* modern browsers; harmless elsewhere */
+.a2-radio:hover{ background:rgba(199,164,104,.12); }
+
+.a2-reminder .form-row{ display:flex; gap:.75rem; }
+.a2-reminder .col-6{ flex:1; }
+
+#arena-sticky-top .a2-toast{ margin-left:12px; font-weight:600; color:#d8c57a; }
+
+.timeline-item{ padding:.55rem .4rem; border-bottom:1px dashed rgba(255,255,255,.08); }
+.timeline-item:last-child{ border-bottom:none; }
+.ti-wrap{ display:block; }
+.ti-when{ font-size:.8rem; color:#cdbb8d; margin-bottom:.1rem; }
+.ti-badge{ display:inline-block; font-size:.72rem; font-weight:700; color:#08221f;
+  background:linear-gradient(90deg, var(--ori-gold,#c7a468), var(--ori-gold-light,#e0c78b));
+  border-radius:6px; padding:.1rem .4rem; margin-bottom:.2rem; }
+.ti-line{ color:#f3f3f3; }
+.ti-ctx{ color:#cdbb8d; }
+.ti-cmt{ margin-top:.15rem; color:#eaeaea; opacity:.9; }
+</style>
+
+
+
+<style>
+/* === Arena2 – Call Result & Timeline ============================ */
+.a2-radio-group { display: flex; flex-wrap: wrap; gap: 1rem; }
+.a2-radio { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+.a2-radio input { accent-color: #c7a468; }
+.a2-radio:hover { background-color: rgba(199, 164, 104, 0.1); }
+
+.a2-reminder { margin-top: 1rem; }
+.a2-reminder.hidden { display: none; }
+</style>
+
+<style>
+/* Quick Actions grid in right column */
+.qa-grid{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap:.5rem;
+}
+.qa-btn{ width:100%; }
+
+/* Generic form helpers */
+.a2-form .form-row{ margin-bottom:.6rem; display:block; }
+.a2-form .form-row.two{ display:flex; gap:.75rem; }
+.a2-form .col-6{ flex:1; }
+.a2-table{ width:100%; border:1px solid rgba(255,255,255,0.08); border-radius:8px; overflow:hidden; }
+.a2-row{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap:.5rem; padding:.5rem .6rem; border-bottom:1px dashed rgba(255,255,255,0.08); }
+.a2-head{ background:rgba(255,255,255,0.05); font-weight:700; color:#e0c78b; }
+.a2-subtle{ color:#cdbb8d; opacity:.9; margin:.5rem 0 0; }
+
+/* Keep the gold look consistent for selects */
+.gold-select {
+  background: rgba(255,255,255,0.06);
+  color: #f0e0b6;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: .38rem .5rem;
+}
+.gold-select option {
+  background-color: #0b2926;
+  color: #e0c78b;
+}
+.gold-select:focus {
+  outline: none;
+  border-color: var(--ori-gold,#c7a468);
+  box-shadow: 0 0 0 0.2rem rgba(199,164,104,.25);
+}
+</style>
+
+<style>
+/* Compact forms */
+.a2-form .form-row{margin-bottom:.45rem;}
+.a2-form textarea{min-height:48px;max-height:80px;}
+.a2-toast{
+  position:fixed;
+  right:22px; bottom:22px;
+  background:rgba(199,164,104,.9);
+  color:#08221f; font-weight:700;
+  padding:.5rem .9rem; border-radius:8px;
+  box-shadow:0 0 10px rgba(0,0,0,.4);
+  z-index:99999;
+  animation:fadeInOut 1.5s ease-in-out;
+}
+@keyframes fadeInOut{
+  0%{opacity:0;transform:translateY(10px);}
+  10%{opacity:1;transform:translateY(0);}
+  90%{opacity:1;}
+  100%{opacity:0;transform:translateY(10px);}
+}
+</style>
+
