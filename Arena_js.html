@@ -1,0 +1,333 @@
+<script>
+/* === ARENA PHASE 6B – Recruiter Dropdown + Gold Selects === */
+window.addEventListener('load', function(){
+  window.Arena = {
+    state:{job:null,candidate:null,original:null,recruiter:null,edit:false,edits:{},list:[],index:0,users:[]},
+
+    /* ---------- LIFECYCLE ---------- */
+    show(payload){
+      const a=document.getElementById('arena-root'),l=document.querySelector('.layout');
+      if(!a)return;
+      document.body.appendChild(a);
+      a.classList.remove('hidden');a.style.display='flex';
+      if(l){l.style.opacity='0';l.style.filter='blur(4px)';l.style.pointerEvents='none';}
+      console.log('✅ Arena displayed');
+
+      const t=document.getElementById('arena-toggle-edit'),
+            s=document.getElementById('arena-save'),
+            d=document.getElementById('arena-discard');
+      if(t)t.onclick=()=>this.toggleEdit();
+      if(s)s.onclick=()=>this.saveEdits();
+      if(d)d.onclick=()=>this.restoreOriginal();
+
+      if(payload&&Array.isArray(payload.list)){this.state.list=payload.list;this.state.index=payload.index||0;}
+      this._updateCounter();
+      ['arena-prev','arena-next','arena-close'].forEach(id=>{
+        const btn=document.getElementById(id);
+        if(!btn)return;
+        if(id==='arena-prev')btn.onclick=()=>this.nav(-1);
+        if(id==='arena-next')btn.onclick=()=>this.nav(1);
+        if(id==='arena-close')btn.onclick=()=>this.hide();
+      });
+
+      document.addEventListener('keydown',e=>{
+        if(e.key==='ArrowLeft')this.nav(-1);
+        if(e.key==='ArrowRight')this.nav(1);
+      });
+
+      this.loadData(payload||{});
+    },
+
+    hide(){
+      const a=document.getElementById('arena-root'),l=document.querySelector('.layout');
+      if(a){a.classList.add('hidden');a.style.display='none';}
+      if(l){l.style.opacity='1';l.style.filter='none';l.style.pointerEvents='auto';}
+      this.state.edit=false;this.state.edits={};this._syncSticky();
+      document.removeEventListener('keydown',this._keyHandler);
+    },
+
+    /* ---------- DATA LOAD ---------- */
+    loadData(p){
+      const loader=document.getElementById('arena-loader');
+      if(loader){loader.textContent='Loading…';loader.classList.remove('hidden');}
+      ['arena-left','arena-middle','arena-right'].forEach(id=>{
+        const e=document.getElementById(id);if(e)e.innerHTML='';
+      });
+      const jobId=p.jobId||'JOB0001',candId=p.candidateId||'CAND0001';
+      const recruiter='Oriol R.';
+
+      // Jobs
+      google.script.run.withSuccessHandler(j=>{
+        const job=(j||[]).find(x=>String(x.JobID)===String(jobId))||(j&&j[0])||null;
+        this.state.job=job;this.renderJob(job);
+      }).getData('Jobs');
+
+      // Users (for dropdown)
+      google.script.run.withSuccessHandler(u=>{
+        this.state.users=u||[];
+      }).getData('Users');
+
+      // Candidate
+      google.script.run.withSuccessHandler(detail=>{
+        const cand=detail&&detail.candidate?detail.candidate:null;
+        this.state.candidate=cand;this.state.recruiter=recruiter;
+        this.state.original=this._buildOriginalSnapshot(cand);
+        this.renderCandidate(cand);
+        this.renderActions(cand,recruiter);
+        this._attachInputListeners();
+        if(loader)loader.classList.add('hidden');
+      }).getCandidateDeep(candId);
+    },
+
+    /* ---------- HELPERS ---------- */
+    _aliases:{CandidateStatus:['status','stage'],OwnerRecruiter:['recruiter','owner']},
+    _resolveKey(o,k){if(!o)return null;
+      const lower={};for(const x in o)lower[x.toLowerCase()]=x;
+      if(o[k])return k;const a=this._aliases[k]||[];
+      for(const n of a){if(lower[n])return lower[n];}
+      return null;},
+    _pickValue(o,k){const r=this._resolveKey(o,k);return r?o[r]:'';},
+    _buildOriginalSnapshot(c){
+      if(!c)return{};
+      const keys=['FirstName','LastName','Email','Phone','Location','Country',
+        'CurrentCompany','CurrentTitle','DesiredRoles','Seniority','Languages',
+        'EnglishLevel','RemoteAllowed','AvailabilityDate',
+        'SalaryExpectGrossMonthly_MXN','SalaryExpectType','NoticePeriodDays',
+        'Source','OwnerRecruiter','CandidateStatus','YearsOfExperience',
+        'Region','LinkedInURL','ResumeURL','Notes'];
+      const o={};keys.forEach(k=>o[k]=this._pickValue(c,k)||'');
+      o.CandidateID=this._pickValue(c,'CandidateID')||'';
+      return o;
+    },
+
+    _inferType(k,v){
+      k=(k||'').toLowerCase();v=String(v||'');
+      if(k==='candidatestatus'||k==='ownerrecruiter')return'select';
+      if(k.includes('email'))return'email';
+      if(k.includes('phone')||k.includes('mobile'))return'tel';
+      if(k.includes('date')||v.indexOf('-')===4)return'date';
+      if(k.includes('url')||v.startsWith('http'))return'url';
+      if(/salary|rate|notice|years|xp|days/.test(k))return'number';
+      if(k.includes('remote')||k.includes('onsite'))return'boolean';
+      if(k.includes('notes'))return'textarea';
+      return'text';
+    },
+
+    _normalizeOut(k,v,t){
+      if(t==='boolean')return!!v;
+      if(t==='number'){const n=parseFloat(String(v||'').replace(/[^\d.\-]/g,''));return isNaN(n)?'':n;}
+      if(t==='date'){
+        const s=String(v||'').trim();if(!s)return'';
+        const rx=/^\d{4}-\d{2}-\d{2}/;
+        if(rx.test(s))return s.slice(0,10);
+        const d=new Date(s);if(isNaN(d.getTime()))return s;
+        const pad=n=>String(n).padStart(2,'0');
+        return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+      }
+      return v==null?'':String(v);
+    },
+
+    /* ---------- RENDER ---------- */
+    renderJob(j){
+      const e=document.getElementById('arena-left');
+      e.innerHTML=j?`<div class="arena-card"><h3>Job & Company</h3>
+        <p><b>${j.JobTitle||''}</b><br>${j.CompanyName||''}</p></div>`
+        :`<div class="arena-card"><h3>Job & Company</h3><p>No job</p></div>`;
+    },
+
+    renderCandidate(c){
+      const e=document.getElementById('arena-middle');
+      if(!c){e.innerHTML='<p>No candidate</p>';return;}
+      const order=Object.keys(this.state.original||{});
+      const flds=order.map(k=>({k,v:this.state.original[k],t:this._inferType(k,this.state.original[k])}));
+      const prof=flds.slice(0,24),more=flds.slice(24);
+      e.innerHTML=`<div class="arena-card"><h3>Candidate Profile</h3>
+        <ul class="nav nav-tabs">
+          <li class="nav-item"><a class="nav-link active" href="#p1" data-toggle="tab">Profile</a></li>
+          <li class="nav-item"><a class="nav-link" href="#p2" data-toggle="tab">More</a></li>
+          <li class="nav-item"><a class="nav-link" href="#p3" data-toggle="tab">Meta</a></li>
+        </ul>
+        <div class="tab-content arena-content">
+          <div class="tab-pane fade show active" id="p1">
+            <div class="arena-grid">${prof.map(f=>this._renderField(f,this.state.edit)).join('')}</div>
+          </div>
+          <div class="tab-pane fade" id="p2">
+            <div class="arena-grid">${more.map(f=>this._renderField(f,this.state.edit)).join('')}</div>
+          </div>
+          <div class="tab-pane fade" id="p3">${this._renderMeta(c)}</div>
+        </div></div>`;
+      if(this.state.edit)this._wireInputs();
+      this._syncSticky();this._updateEditToggleLabel();
+    },
+
+    _renderField(f,edit){
+      const id='fld_'+f.k,lab=f.k.replace(/_/g,' '),val=f.v||'';
+      if(f.k==='CandidateStatus'||f.k==='OwnerRecruiter'){
+        const opts=f.k==='CandidateStatus'
+          ?['New','Screening','Interview','Offer','Hired','Rejected','On Hold']
+          :this.state.users.filter(u=>!u.Disabled)
+              .map(u=>u.FullName||u.Name||'Unknown');
+        if(!edit)return`<div class="arena-field"><label>${lab}</label><div>${val}</div></div>`;
+        return`<div class="arena-field"><label>${lab}</label>
+          <select id="${id}" class="edit-input gold-select" data-key="${f.k}">
+          ${opts.map(o=>`<option ${o===val?'selected':''}>${o}</option>`).join('')}</select></div>`;
+      }
+     if(!edit){
+  if(f.t==='url' && val.startsWith('http'))
+    return `<div class="arena-field"><label>${lab}</label><div><a href="${val}" target="_blank" style="color:#e0c78b">${val}</a></div></div>`;
+  if(f.t==='boolean')
+    return `<div class="arena-field"><label>${lab}</label><div>${val==='true' || val===true ? '✅' : '❌'}</div></div>`;
+  return `<div class="arena-field"><label>${lab}</label><div>${val}</div></div>`;
+}
+
+      const dk=`data-key="${f.k}"`;
+      if(f.t==='textarea')
+        return`<div class="arena-field"><label>${lab}</label><textarea id="${id}" class="edit-input" ${dk}>${val}</textarea></div>`;
+      if(f.t==='boolean'){
+        const chk=(String(val).toLowerCase()==='true'||val===true)?'checked':'';
+        return`<div class="arena-field"><label>${lab}</label><input id="${id}" type="checkbox" class="edit-input" ${dk} ${chk}></div>`;
+      }
+      const type=(f.t==='number'||f.t==='date'||f.t==='email'||f.t==='tel'||f.t==='url')?f.t:'text';
+      return`<div class="arena-field"><label>${lab}</label>
+        <input id="${id}" type="${type}" class="edit-input" ${dk} value="${val}"></div>`;
+    },
+
+    _renderMeta(c){
+      const id=c.CandidateID||'',cr=c.CreatedOn||'',up=c.UpdatedOn||'';
+      return `<p><b>ID:</b> ${id}</p><p><b>Created:</b> ${cr}</p><p><b>Updated:</b> ${up}</p>`;
+    },
+
+    renderActions(c,r){
+      const e=document.getElementById('arena-right');
+      e.innerHTML=`<div class="arena-card"><h3>Quick Actions</h3>
+        <button class="btn btn-gold btn-block">✉ Email ${(c&&c.FirstName)||''}</button>
+        <button class="btn btn-outline-light btn-block">📅 Interview</button>
+        <button class="btn btn-outline-light btn-block">🗒 Note</button>
+        <button class="btn btn-outline-light btn-block">🏆 Hire</button>
+        <button class="btn btn-outline-light btn-block">⏰ Reminder</button>
+        <hr><p class="small text-muted">By ${r}</p></div>`;
+    },
+
+    /* ---------- EDITING ---------- */
+toggleEdit(){
+  this.state.edit = !this.state.edit;
+  this.renderCandidate(this.state.candidate);
+},
+
+_updateEditToggleLabel(){
+  const t = document.getElementById('arena-toggle-edit');
+  if(t) t.textContent = this.state.edit ? '✅ Editing' : '✏️ Edit Profile';
+},
+
+_attachInputListeners(){
+  const m = document.getElementById('arena-middle');
+  if(!m) return;
+  m.oninput = e => this._onChange(e);
+  m.onchange = e => this._onChange(e);
+},
+
+_wireInputs(){
+  this.state.edits = {};
+  document.querySelectorAll('#arena-middle .edit-input').forEach(i=>{
+    if(!i.dataset.key) i.dataset.key = i.id.replace(/^fld_/, '');
+  });
+},
+
+_onChange(e){
+  const el = e.target;
+  if(!el.classList.contains('edit-input')) return;
+
+  const k = el.dataset.key || el.id.replace(/^fld_/, '');
+  let v = el.type === 'checkbox' ? el.checked : el.value;
+  const t = this._inferType(k, v);
+  const norm = this._normalizeOut(k, v, t);
+  const orig = this.state.original[k] || '';
+
+  if(String(norm) === String(orig)){
+    delete this.state.edits[k];
+  } else {
+    this.state.edits[k] = norm;
+  }
+
+  this._syncSticky();
+},
+
+_syncSticky(){ /* no longer needed */ },
+
+
+restoreOriginal(){
+  this.state.edits = {};
+  this.renderCandidate(this.state.candidate);
+},
+
+saveEdits(){
+  const idKey = this._resolveKey(this.state.candidate, 'CandidateID') || 'ID';
+  const id = this.state.candidate[idKey];
+  if(!id){ alert('Missing CandidateID'); return; }
+
+  const diff = {};
+  diff[idKey] = id;
+  for(const k in this.state.edits) diff[k] = this.state.edits[k];
+
+  google.script.run
+    .withSuccessHandler(()=>this._toast('Saved','success'))
+    .withFailureHandler(e=>this._toast('Save failed '+e.message,'error'))
+    .saveData('Candidates', diff);
+
+  this.state.edits = {};
+  this._syncSticky();
+},
+
+
+    /* ---------- NAVIGATION ---------- */
+    nav(step){if(!this.state.list.length)return;
+      const next=this.state.index+step;if(next<0||next>=this.state.list.length)return;
+      this.state.index=next;const candId=this.state.list[next];
+      const mid=document.getElementById('arena-middle');
+      if(mid)mid.style.opacity='0';
+      setTimeout(()=>this.loadData({candidateId:candId}),150);
+      setTimeout(()=>{if(mid)mid.style.opacity='1';},400);
+      this._updateCounter();},
+    _updateCounter(){const el=document.getElementById('arena-counter');
+      if(!el)return;const total=this.state.list.length||1;const idx=this.state.index+1;
+      el.textContent=`${idx} of ${total}`;},
+
+    /* ---------- SHORTCUTS ---------- */
+    _keyHandler(e){if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){
+        e.preventDefault();window.Arena.saveEdits();}
+      if(e.key==='Escape')window.Arena.restoreOriginal();},
+    _toast(msg,kind){const b=document.getElementById('arena-sticky-bar');if(!b)return alert(msg);
+      const s=document.createElement('span');s.textContent=msg;s.style.marginLeft='10px';
+      s.style.color=kind==='error'?'#fbb':'#d8c57a';b.appendChild(s);setTimeout(()=>s.remove(),2000);}
+  };
+  console.log('✅ Arena JS loaded globally after window.load');
+});
+</script>
+
+<style>
+/* === Arena2 Phase 7B extras === */
+.a2-subtle{ color:#cdbb8d; opacity:.9; margin-bottom:.5rem; }
+
+.a2-radio-group{ display:flex; flex-wrap:wrap; gap:.35rem .6rem; }
+.a2-radio{ display:inline-flex; align-items:center; gap:.4rem; padding:.28rem .55rem;
+  border:1px solid rgba(199,164,104,.45); border-radius:999px;
+  background:rgba(199,164,104,.07); cursor:pointer; user-select:none; }
+.a2-radio input{ accent-color:#c7a468; } /* modern browsers; harmless elsewhere */
+.a2-radio:hover{ background:rgba(199,164,104,.12); }
+
+.a2-reminder .form-row{ display:flex; gap:.75rem; }
+.a2-reminder .col-6{ flex:1; }
+
+#arena-sticky-top .a2-toast{ margin-left:12px; font-weight:600; color:#d8c57a; }
+
+.timeline-item{ padding:.55rem .4rem; border-bottom:1px dashed rgba(255,255,255,.08); }
+.timeline-item:last-child{ border-bottom:none; }
+.ti-wrap{ display:block; }
+.ti-when{ font-size:.8rem; color:#cdbb8d; margin-bottom:.1rem; }
+.ti-badge{ display:inline-block; font-size:.72rem; font-weight:700; color:#08221f;
+  background:linear-gradient(90deg, var(--ori-gold,#c7a468), var(--ori-gold-light,#e0c78b));
+  border-radius:6px; padding:.1rem .4rem; margin-bottom:.2rem; }
+.ti-line{ color:#f3f3f3; }
+.ti-ctx{ color:#cdbb8d; }
+.ti-cmt{ margin-top:.15rem; color:#eaeaea; opacity:.9; }
+</style>
