@@ -1,0 +1,28 @@
+<!-- === ARENA UI (Phase 7 – Unified Topbar with Edit Controls) === -->
+<div id="arena-root" class="arena section hidden">
+
+  <!-- Top navigation bar -->
+  <div id="arena-topbar" class="arena-topbar">
+    <div class="arena-nav-left">
+      <button id="arena-prev" class="btn btn-outline-light btn-sm">⬅ Prev</button>
+      <span id="arena-counter" class="arena-counter">1 of 1</span>
+      <button id="arena-next" class="btn btn-outline-light btn-sm">Next ➡</button>
+    </div>
+
+    <div class="arena-nav-right">
+      <button id="arena-toggle-edit" class="btn btn-outline-light btn-sm">✏️ Edit</button>
+      <button id="arena-save" class="btn btn-gold btn-sm">💾 Save</button>
+      <button id="arena-discard" class="btn btn-outline-light btn-sm">✖ Discard</button>
+      <button id="arena-close" class="btn btn-outline-light btn-sm">✖ Close</button>
+    </div>
+  </div>
+
+  <!-- Main 3-column container -->
+  <div class="arena-container">
+    <section id="arena-left" class="arena-col arena-left"></section>
+    <section id="arena-middle" class="arena-col arena-middle"></section>
+    <section id="arena-right" class="arena-col arena-right"></section>
+  </div>
+
+  <div id="arena-loader" class="arena-loader hidden">Loading Arena…</div>
+</div>
