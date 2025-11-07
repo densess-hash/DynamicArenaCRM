@@ -1,0 +1,346 @@
+<script>
+/* === ARENA2 (Right Column) — Visual-only Quick Actions Pack (ES5-safe) === */
+/* Scope: adds UI-only actions inside #arena-root > #arena-right without affecting the rest of CRM. */
+window.addEventListener('load', function () {
+  if (!window.Arena) {
+    console.warn('⚠️ Arena base not found; Arena2 will wait.');
+    return;
+  }
+
+  /* -----------------------------------------------------------
+   * Utilities (scoped & ES5)
+   * --------------------------------------------------------- */
+  function _inArena() {
+    return document.getElementById('arena-root');
+  }
+  function _rightCol() {
+    return document.getElementById('arena-right');
+  }
+  function _cardWrap(title, bodyHtml) {
+    var h = '';
+    h += '<div class="arena-card">';
+    h += '  <h3>' + title + '</h3>';
+    h += '  <div class="arena-content">' + bodyHtml + '</div>';
+    h += '</div>';
+    return h;
+  }
+  function _btn(cls, text, id, extra) {
+    var h = '<button class="' + cls + '"';
+    if (id) h += ' id="' + id + '"';
+    if (extra) h += ' ' + extra;
+    h += '>' + text + '</button>';
+    return h;
+  }
+  function _backButtonHtml() {
+    return _btn('btn btn-outline-light btn-block mt-2', '⬅ Back', 'a2-back', '');
+  }
+  function _setRightHtml(html) {
+    var r = _rightCol();
+    if (!r) return;
+    r.innerHTML = html;
+  }
+  function _appendBelowHeader(htmlBody) {
+    var r = _rightCol();
+    if (!r) return;
+    _setRightHtml(htmlBody);
+  }
+
+  /* -----------------------------------------------------------
+   * Attach extensions to Arena (non-destructive)
+   * --------------------------------------------------------- */
+  var A = window.Arena;
+
+  /* 1) Extend renderActions to inject the full Quick Actions menu */
+  A.renderActions = (function (orig) {
+    return function (c, recruiter) {
+      // call original (keeps the existing card & buttons)
+      orig.call(this, c, recruiter);
+
+      // re-scope strictly to arena-right and rebuild the button stack, visually rich
+      var r = _rightCol();
+      if (!r) return;
+
+      // Build a dedicated Quick Actions launcher panel
+      var menu =
+        '<div class="arena-card">' +
+          '<h3>Quick Actions</h3>' +
+          '<div class="qa-grid">' +
+            _btn('btn btn-gold qa-btn', '🕒 Timeline', 'qa-timeline') +
+            _btn('btn btn-outline-light qa-btn', '✉ Email', 'qa-email') +
+            _btn('btn btn-outline-light qa-btn', '📅 Interview', 'qa-interview') +
+            _btn('btn btn-outline-light qa-btn', '🗒 Note', 'qa-note') +
+            _btn('btn btn-outline-light qa-btn', '🏆 Hire', 'qa-hire') +
+            _btn('btn btn-outline-light qa-btn', '📣 Feedback', 'qa-feedback') +
+            _btn('btn btn-outline-light qa-btn', '🔁 Status History', 'qa-status') +
+            _btn('btn btn-outline-light qa-btn', '⏰ Reminder', 'qa-reminder') +
+          '</div>' +
+          '<p class="a2-subtle">Choose an action to work inline on the right panel. Each action has its own Save/Cancel.</p>' +
+        '</div>';
+
+      // Replace right panel with the unified menu + keep consistent look
+      _setRightHtml(menu);
+
+      // Wire buttons (UI-only)
+      var self = this;
+      function on(id, fn) {
+        var el = document.getElementById(id);
+        if (el) el.onclick = fn;
+      }
+      on('qa-timeline', function () { self.openAction('timeline'); });
+      on('qa-email',    function () { self.openAction('email'); });
+      on('qa-interview',function () { self.openAction('interview'); });
+      on('qa-note',     function () { self.openAction('note'); });
+      on('qa-hire',     function () { self.openAction('hire'); });
+      on('qa-feedback', function () { self.openAction('feedback'); });
+      on('qa-status',   function () { self.openAction('status'); });
+      on('qa-reminder', function () { self.openAction('reminder'); });
+    };
+  })(A.renderActions);
+
+  /* 2) Action Router (visual only, no backend calls) */
+  A.openAction = function (act) {
+    var title, body, html;
+    if (act === 'timeline') {
+      title = 'Timeline';
+      body = A2_TimelineView();
+    } else if (act === 'email') {
+      title = 'Send Email';
+      body = A2_EmailView();
+    } else if (act === 'interview') {
+      title = 'Schedule Interview';
+      body = A2_InterviewView();
+    } else if (act === 'note') {
+      title = 'Add Note';
+      body = A2_NoteView();
+    } else if (act === 'hire') {
+      title = 'Mark as Hired';
+      body = A2_HireView();
+    } else if (act === 'feedback') {
+      title = 'Log Feedback';
+      body = A2_FeedbackView();
+    } else if (act === 'status') {
+      title = 'Status History';
+      body = A2_StatusHistoryView();
+    } else if (act === 'reminder') {
+      title = 'Set Reminder';
+      body = A2_ReminderView();
+    } else {
+      // fallback to menu
+      this.renderActions(this.state.candidate, this.state.recruiter);
+      return;
+    }
+
+    html  = _cardWrap(title, body);
+    html += _backButtonHtml();
+    _setRightHtml(html);
+
+    // Wire generic Back button
+    var back = document.getElementById('a2-back');
+    var self = this;
+    if (back) back.onclick = function () {
+      self.renderActions(self.state.candidate, self.state.recruiter);
+    };
+  };
+
+  /* -----------------------------------------------------------
+   * 3) Individual Visual Views (no persistence yet)
+   * --------------------------------------------------------- */
+
+  /* TIMELINE (sample items) */
+  function A2_TimelineView() {
+    var items = [
+      { t:'Call',  d:'2025-11-06', job:'JOB0001', client:'TechNova',  line:'Spoke – Interested', cmt:'' },
+      { t:'Email', d:'2025-11-04', job:'JOB0001', client:'TechNova',  line:'Sent CV to client',  cmt:'CV v2 attached' },
+      { t:'Interview', d:'2025-10-30', job:'JOB0002', client:'DataCorp', line:'Scheduled 1st Interview', cmt:'Client prefers morning' }
+    ];
+    var h = '<div class="timeline-wrap">';
+    for (var i=0;i<items.length;i++){
+      var a = items[i];
+      h += '<div class="timeline-item">';
+      h += '  <span class="t-type">'+a.t+'</span>';
+      h += '  <span class="t-date">'+a.d+'</span><br>';
+      h += '  <b>'+a.job+'</b> — '+a.client+'<br>';
+      h += '  <i>'+a.line+'</i>';
+      if (a.cmt) h += '<div class="ti-cmt">'+a.cmt+'</div>';
+      h += '</div>';
+    }
+    h += '</div>';
+    return h;
+  }
+
+  /* EMAIL */
+  function A2_EmailView() {
+    var h = '';
+    h += '<div class="a2-form">';
+    h += '  <div class="form-row">';
+    h += '    <label>To</label>';
+    h += '    <input type="email" class="edit-input" placeholder="candidate@example.com">';
+    h += '  </div>';
+    h += '  <div class="form-row">';
+    h += '    <label>CC</label>';
+    h += '    <input type="text" class="edit-input" placeholder="manager@example.com, client@example.com">';
+    h += '  </div>';
+    h += '  <div class="form-row">';
+    h += '    <label>Subject</label>';
+    h += '    <input type="text" class="edit-input" placeholder="Subject">';
+    h += '  </div>';
+    h += '  <div class="form-row">';
+    h += '    <label>Template</label>';
+    h += '    <select class="edit-input gold-select">';
+    h += '      <option>— Choose a template —</option>';
+    h += '      <option>Intro + Role Pitch</option>';
+    h += '      <option>Interview Confirmation</option>';
+    h += '      <option>Client CV Submission</option>';
+    h += '    </select>';
+    h += '  </div>';
+    h += '  <div class="form-row">';
+    h += '    <label>Message</label>';
+    h += '    <textarea rows="6" class="edit-input" placeholder="Write your email..."></textarea>';
+    h += '  </div>';
+    h += '  <div class="form-row two">';
+    h +=      _btn('btn btn-gold', 'Send Email', 'a2-email-send') +
+             _btn('btn btn-outline-light', 'Cancel', 'a2-email-cancel');
+    h += '  </div>';
+    h += '</div>';
+    return h;
+  }
+
+  /* INTERVIEW */
+  function A2_InterviewView() {
+    var h = '';
+    h += '<div class="a2-form">';
+    h += '  <div class="form-row two">';
+    h += '    <div class="col-6"><label>Date</label><input type="date" class="edit-input"></div>';
+    h += '    <div class="col-6"><label>Time</label><input type="time" class="edit-input"></div>';
+    h += '  </div>';
+    h += '  <div class="form-row">';
+    h += '    <label>Interviewer(s)</label><input type="text" class="edit-input" placeholder="Client contact(s), RM(s)...">';
+    h += '  </div>';
+    h += '  <div class="form-row">';
+    h += '    <label>Mode</label><select class="edit-input gold-select"><option>Video</option><option>Phone</option><option>Onsite</option></select>';
+    h += '  </div>';
+    h += '  <div class="form-row">';
+    h += '    <label>Notes</label><textarea rows="4" class="edit-input" placeholder="Agenda, links, panel..."></textarea>';
+    h += '  </div>';
+    h += '  <div class="form-row two">';
+    h +=      _btn('btn btn-gold', 'Schedule', 'a2-int-save') +
+             _btn('btn btn-outline-light', 'Cancel', 'a2-int-cancel');
+    h += '  </div>';
+    h += '</div>';
+    return h;
+  }
+
+  /* NOTE */
+  function A2_NoteView() {
+    var h = '';
+    h += '<div class="a2-form">';
+    h += '  <div class="form-row">';
+    h += '    <label>Visibility</label>';
+    h += '    <select class="edit-input gold-select"><option>Private (Recruiters)</option><option>Internal (Team)</option><option>Shareable (Client)</option></select>';
+    h += '  </div>';
+    h += '  <div class="form-row">';
+    h += '    <label>Note</label><textarea rows="6" class="edit-input" placeholder="Write a note..."></textarea>';
+    h += '  </div>';
+    h += '  <div class="form-row two">';
+    h +=      _btn('btn btn-gold', 'Save Note', 'a2-note-save') +
+             _btn('btn btn-outline-light', 'Cancel', 'a2-note-cancel');
+    h += '  </div>';
+    h += '</div>';
+    return h;
+  }
+
+  /* HIRE */
+  function A2_HireView() {
+    var h = '';
+    h += '<div class="a2-form">';
+    h += '  <div class="form-row two">';
+    h += '    <div class="col-6"><label>Start Date</label><input type="date" class="edit-input"></div>';
+    h += '    <div class="col-6"><label>Employment Type</label><select class="edit-input gold-select"><option>Permanent</option><option>Contract</option></select></div>';
+    h += '  </div>';
+    h += '  <div class="form-row two">';
+    h += '    <div class="col-6"><label>Monthly Salary (MXN)</label><input type="number" class="edit-input" placeholder="e.g., 70000"></div>';
+    h += '    <div class="col-6"><label>Daily Rate (MXN)</label><input type="number" class="edit-input" placeholder="e.g., 3500"></div>';
+    h += '  </div>';
+    h += '  <div class="form-row">';
+    h += '    <label>Docs</label>';
+    h += '    <div class="a2-radio-group">';
+    h += '      <label class="a2-radio"><input type="checkbox"> Offer Signed</label>';
+    h += '      <label class="a2-radio"><input type="checkbox"> Contract Signed</label>';
+    h += '      <label class="a2-radio"><input type="checkbox"> NDA Signed</label>';
+    h += '    </div>';
+    h += '  </div>';
+    h += '  <div class="form-row">';
+    h += '    <label>Notes</label><textarea rows="4" class="edit-input" placeholder="Any additional hire info..."></textarea>';
+    h += '  </div>';
+    h += '  <div class="form-row two">';
+    h +=      _btn('btn btn-gold', 'Confirm Hire', 'a2-hire-save') +
+             _btn('btn btn-outline-light', 'Cancel', 'a2-hire-cancel');
+    h += '  </div>';
+    h += '</div>';
+    return h;
+  }
+
+  /* FEEDBACK (client/interview) */
+  function A2_FeedbackView() {
+    var h = '';
+    h += '<div class="a2-form">';
+    h += '  <div class="form-row two">';
+    h += '    <div class="col-6"><label>Context</label><select class="edit-input gold-select"><option>CV Review</option><option>Interview 1</option><option>Interview 2</option><option>Test / Task</option><option>Post-Hire</option></select></div>';
+    h += '    <div class="col-6"><label>Outcome</label><select class="edit-input gold-select"><option>Positive</option><option>Neutral</option><option>Negative</option></select></div>';
+    h += '  </div>';
+    h += '  <div class="form-row">';
+    h += '    <label>Summary</label><textarea rows="5" class="edit-input" placeholder="Short summary of feedback..."></textarea>';
+    h += '  </div>';
+    h += '  <div class="form-row two">';
+    h +=      _btn('btn btn-gold', 'Save Feedback', 'a2-fb-save') +
+             _btn('btn btn-outline-light', 'Cancel', 'a2-fb-cancel');
+    h += '  </div>';
+    h += '</div>';
+    return h;
+  }
+
+  /* STATUS HISTORY (visual list) */
+  function A2_StatusHistoryView() {
+    var rows = [
+      { d:'2025-10-03', s:'New', by:'Oriol' },
+      { d:'2025-10-05', s:'Screening', by:'Oriol' },
+      { d:'2025-10-11', s:'Interview', by:'RM Ana' },
+      { d:'2025-10-20', s:'Offer', by:'Client' }
+    ];
+    var h = '<div class="a2-table"><div class="a2-row a2-head"><div>Date</div><div>Status</div><div>By</div></div>';
+    for (var i=0;i<rows.length;i++){
+      var r = rows[i];
+      h += '<div class="a2-row"><div>'+r.d+'</div><div><span class="ti-badge">'+r.s+'</span></div><div>'+r.by+'</div></div>';
+    }
+    h += '</div>';
+    h += '<div class="form-row two mt-2">' +
+           _btn('btn btn-outline-light', 'Close', 'a2-status-close') +
+         '</div>';
+    return h;
+  }
+
+  /* REMINDER */
+  function A2_ReminderView() {
+    var h = '';
+    h += '<div class="a2-form a2-reminder">';
+    h += '  <div class="form-row two">';
+    h += '    <div class="col-6"><label>Date</label><input type="date" class="edit-input"></div>';
+    h += '    <div class="col-6"><label>Time</label><input type="time" class="edit-input"></div>';
+    h += '  </div>';
+    h += '  <div class="form-row">';
+    h += '    <label>Reminder For</label><select class="edit-input gold-select"><option>Self</option><option>Recruiter Team</option><option>Client Contact</option></select>';
+    h += '  </div>';
+    h += '  <div class="form-row">';
+    h += '    <label>Notes</label><textarea rows="4" class="edit-input" placeholder="What should we remember?"></textarea>';
+    h += '  </div>';
+    h += '  <div class="form-row two">';
+    h +=      _btn('btn btn-gold', 'Save Reminder', 'a2-rem-save') +
+             _btn('btn btn-outline-light', 'Cancel', 'a2-rem-cancel');
+    h += '  </div>';
+    h += '</div>';
+    return h;
+  }
+
+  console.log('✅ Arena2 (Visual-only Quick Actions) loaded');
+});
+</script>
