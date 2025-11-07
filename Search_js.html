@@ -1,0 +1,328 @@
+<script>
+/* ============================================================
+   ORI-ON CRM — Boolean Search + Candidate Drawer + Call Lists
+   Safe, self-contained; works with Index.html
+   ============================================================ */
+(function(){
+  const CONTENT_ID = 'content-area';
+
+  // Public entry from sidebar
+  window.openSearchPage = function(){
+    const dash = document.getElementById('dashboard-area'); if (dash) dash.innerHTML = '';
+    const chips = document.getElementById('filter-chips'); if (chips) chips.innerHTML = '';
+    const host = document.getElementById(CONTENT_ID);
+    if (!host) return;
+
+    // Title
+    const titleEl = document.getElementById('entity-title');
+    if (titleEl) titleEl.textContent = 'Search';
+
+    host.innerHTML = `
+      <div class="card p-3 mb-3">
+        <div class="d-flex align-items-center">
+          <input id="q" class="form-control mr-2" placeholder='e.g. skill:"SAP FI" OR "SAP CO" AND country:Mexico AND salary>=40000'>
+          <button id="run" class="btn btn-gold">Search</button>
+          <button id="clear" class="btn btn-outline-light ml-2">Clear</button>
+        </div>
+        <div class="mt-2 d-flex flex-wrap">
+          <div class="form-inline mr-3 mt-2">
+            <label class="mr-1">English</label>
+            <select id="fltEnglish" class="form-control">
+              <option value="">Any</option>
+            </select>
+          </div>
+          <div class="form-inline mr-3 mt-2">
+            <label class="mr-1">Salary ≥</label>
+            <input id="fltSalaryMin" type="number" class="form-control" style="width:120px" placeholder="MXN">
+          </div>
+          <div class="form-inline mr-3 mt-2">
+            <label class="mr-1">Salary ≤</label>
+            <input id="fltSalaryMax" type="number" class="form-control" style="width:120px" placeholder="MXN">
+          </div>
+          <div class="form-inline mr-3 mt-2">
+            <label class="mr-1">Country</label>
+            <input id="fltCountry" class="form-control" style="width:140px" placeholder="Any">
+          </div>
+          <div class="form-inline mr-3 mt-2">
+            <label class="mr-1">Region</label>
+            <input id="fltRegion" class="form-control" style="width:140px" placeholder="Any">
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-2 d-flex flex-wrap align-items-center">
+        <button id="addNewList" class="btn btn-gold btn-sm mr-2" disabled>Add to New Call List</button>
+        <div class="input-group" style="max-width:320px;">
+          <select id="existingList" class="form-control"></select>
+          <div class="input-group-append">
+            <button id="addExisting" class="btn btn-outline-light btn-sm" disabled>Add to Existing</button>
+          </div>
+        </div>
+        <button id="exportCsv" class="btn btn-outline-light btn-sm ml-2" disabled>Export CSV</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table table-sm table-hover mb-0">
+          <thead>
+            <tr>
+              <th style="width:28px;"><input type="checkbox" id="chkAll"></th>
+              <th>Full Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Location</th>
+              <th>Current Title</th>
+              <th>English</th>
+              <th>Type</th>
+              <th>Salary (MXN)</th>
+              <th>Last Contact</th>
+            </tr>
+          </thead>
+          <tbody id="searchBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Profile Drawer -->
+      <div id="profileDrawer" style="
+        position:fixed; top:0; right:-560px; width:560px; height:100vh;
+        background:linear-gradient(180deg,var(--panel-dark),#04100f);
+        color:#fff; box-shadow:-6px 0 16px rgba(0,0,0,.45);
+        border-left:1px solid rgba(255,255,255,.08);
+        transition:right .25s ease; z-index:9999; overflow:auto;">
+        <div class="p-3 d-flex justify-content-between align-items-center" style="border-bottom:1px solid rgba(255,255,255,.08)">
+          <div id="pd-title" style="color:var(--ori-gold-light); font-weight:600;">Candidate</div>
+          <button id="pd-close" class="btn btn-outline-light btn-sm">Close</button>
+        </div>
+        <div id="pd-body" class="p-3"></div>
+      </div>
+    `;
+
+    // Populate existing call lists & dynamic English options
+    google.script.run.withSuccessHandler(populateLists).listCallLists();
+    google.script.run.withSuccessHandler(values=>{
+      const sel = document.getElementById('fltEnglish');
+      const unique = Array.from(new Set((values||[]).filter(v=>v))).sort((a,b)=>String(a).localeCompare(String(b)));
+      sel.innerHTML = '<option value="">Any</option>' + unique.map(v=>`<option>${String(v)}</option>`).join('');
+    }).getUniqueValues('Candidates','EnglishLevel');
+
+    // Bindings
+    document.getElementById('run').onclick = runSearch;
+    document.getElementById('clear').onclick = () => {
+      document.getElementById('q').value = '';
+      document.getElementById('fltEnglish').value = '';
+      ['fltSalaryMin','fltSalaryMax','fltCountry','fltRegion'].forEach(id => document.getElementById(id).value = '');
+      runSearch();
+    };
+    document.getElementById('addNewList').onclick = addToNewList;
+    document.getElementById('addExisting').onclick = addToExistingList;
+    document.getElementById('exportCsv').onclick = exportCSV;
+    document.getElementById('pd-close').onclick = () => document.getElementById('profileDrawer').style.right = '-560px';
+    document.getElementById('chkAll').onchange = (e)=> {
+      document.querySelectorAll('.rowChk').forEach(c=>c.checked=e.target.checked);
+      updateToolbarState();
+    };
+
+    // Keep sidebar working after Search render (defensive)
+    document.querySelectorAll('#entity-list .entity-item').forEach(item=>{
+      item.onclick = () => {
+        document.querySelectorAll('.entity-item').forEach(i=>i.classList.remove('active'));
+        item.classList.add('active');
+        const name = item.textContent.trim();
+        if (name==='Search') openSearchPage(); else loadEntity(name);
+      };
+    });
+
+    // Initial load: show all candidates
+    runSearch();
+  };
+
+  function populateLists(rows){
+    const sel = document.getElementById('existingList');
+    if (!sel) return;
+    sel.innerHTML = `<option value="">Choose existing...</option>` + (rows||[]).map(r =>
+      `<option value="${r.CallListID}">${r.Name} (${r.CallsCompleted||0}/${r.CallCount||0})</option>`
+    ).join('');
+  }
+
+  function getExtraFilters(){
+    return {
+      english: (document.getElementById('fltEnglish').value||'').trim(),
+      salaryMin: Number(document.getElementById('fltSalaryMin').value || '') || null,
+      salaryMax: Number(document.getElementById('fltSalaryMax').value || '') || null,
+      country: (document.getElementById('fltCountry').value||'').trim(),
+      region: (document.getElementById('fltRegion').value||'').trim(),
+    };
+  }
+
+  function runSearch(){
+    const q = document.getElementById('q').value || '';
+    const extra = getExtraFilters();
+    google.script.run.withSuccessHandler(renderResults).searchCandidates(q, extra);
+  }
+
+  function renderResults(rows){
+    const tb = document.getElementById('searchBody'); if (!tb) return;
+    if (!rows || !rows.length){
+      tb.innerHTML = `<tr><td colspan="10" class="text-center text-muted">No results.</td></tr>`;
+      updateToolbarState(); return;
+    }
+    tb.innerHTML = rows.map(r => {
+      const lastContact = r._LastContact ? String(r._LastContact).substring(0,10) : '';
+      const salary = Number(String(r.SalaryExpectGrossMonthly_MXN||'').replace(/[^0-9.]/g,'')) || '';
+      const type   = r.SalaryExpectType || '';
+      const english= r.EnglishLevel || '';
+      return `
+        <tr data-id="${r.CandidateID}" onclick="(function(id){ if(event.target.classList.contains('rowChk')) return; window.openCandidateProfile && window.openCandidateProfile(id); })('${r.CandidateID}')">
+          <td><input type="checkbox" class="rowChk" onclick="event.stopPropagation(); updateToolbarState()"></td>
+          <td>${escapeHTML(r.FullName||`${r.FirstName||''} ${r.LastName||''}`)}</td>
+          <td>${escapeHTML(r.Email||'')}</td>
+          <td>${escapeHTML(r.Phone||'')}</td>
+          <td>${escapeHTML(r.Location||'')}</td>
+          <td>${escapeHTML(r.CurrentTitle||'')}</td>
+          <td>${escapeHTML(english)}</td>
+          <td>${escapeHTML(type)}</td>
+          <td>${salary? salary.toLocaleString(): ''}</td>
+          <td>${escapeHTML(lastContact)}</td>
+        </tr>`;
+    }).join('');
+    updateToolbarState();
+  }
+
+  window.openCandidateProfile = function(candidateId){
+    google.script.run.withSuccessHandler(draw => {
+      const title = document.getElementById('pd-title');
+      const body  = document.getElementById('pd-body');
+      if (!draw || !draw.candidate){ title.textContent='Candidate'; body.innerHTML='Not found.'; openDrawer(); return; }
+
+      title.textContent = draw.candidate.FullName || `${draw.candidate.FirstName||''} ${draw.candidate.LastName||''}`;
+      const skills = (draw.skills||[]).join(', ');
+      const notes  = escapeHTML(draw.candidate.Notes||'');
+
+      const infoCols = `
+        <div class="row">
+          <div class="col-6">
+            <div><b>Email:</b> ${escapeHTML(draw.candidate.Email||'')}</div>
+            <div><b>Phone:</b> ${escapeHTML(draw.candidate.Phone||'')}</div>
+            <div><b>Location:</b> ${escapeHTML(draw.candidate.Location||'')}</div>
+            <div><b>Country:</b> ${escapeHTML(draw.candidate.Country||'')}</div>
+            <div><b>Region:</b> ${escapeHTML(draw.candidate.Region||'')}</div>
+            <div><b>English:</b> ${escapeHTML(draw.candidate.EnglishLevel||'')}</div>
+            <div><b>Salary (MXN):</b> ${escapeHTML(draw.candidate.SalaryExpectGrossMonthly_MXN||'')}</div>
+            <div><b>Type:</b> ${escapeHTML(draw.candidate.SalaryExpectType||'')}</div>
+            <div><b>Availability:</b> ${escapeHTML(draw.candidate.AvailabilityDate||'')}</div>
+          </div>
+          <div class="col-6">
+            <div><b>Current Company:</b> ${escapeHTML(draw.candidate.CurrentCompany||'')}</div>
+            <div><b>Current Title:</b> ${escapeHTML(draw.candidate.CurrentTitle||'')}</div>
+            <div><b>Desired Roles:</b> ${escapeHTML(draw.candidate.DesiredRoles||'')}</div>
+            <div><b>Owner Recruiter:</b> ${escapeHTML(draw.candidate.OwnerRecruiter||'')}</div>
+            <div><b>Status:</b> ${escapeHTML(draw.candidate.CandidateStatus||'')}</div>
+            <div><b>Notice Period:</b> ${escapeHTML(draw.candidate.NoticePeriodDays||'')}</div>
+          </div>
+        </div>`;
+
+      const activities = (draw.activities||[]).map(a =>
+        `<div class="mb-2"><b>${escapeHTML(a.Type||'Activity')}</b> · ${escapeHTML(a.DateTime||'')}
+         <div class="small text-muted">${escapeHTML(a.Notes||'')}</div></div>`).join('') || '<div class="text-muted">No recent activity.</div>';
+
+      const apps = (draw.applications||[]).map(a =>
+        `<div class="mb-2"><b>Application</b> to ${escapeHTML(a.JobID||'')} — ${escapeHTML(a.Status||'')}
+         <div class="small text-muted">Stage: ${escapeHTML(a.Stage||'')} | Score: ${escapeHTML(a.Score||'')} | Last: ${escapeHTML(a.LastContact||'')}</div></div>`).join('');
+
+      const interviews = (draw.interviews||[]).map(i =>
+        `<div class="mb-2"><b>Interview</b> ${escapeHTML(i.InterviewType||'')} · ${escapeHTML(i.DateTime||'')} — ${escapeHTML(i.Status||'')}
+         <div class="small text-muted">Score: ${escapeHTML(i.Score||'')}</div></div>`).join('');
+
+      const hires = (draw.hires||[]).map(h =>
+        `<div class="mb-2"><b>Hire</b> for Job ${escapeHTML(h.JobID||'')} — ${escapeHTML(h.HireDate||'')}
+         <div class="small text-muted">Agreed: ${escapeHTML(h.SalaryAgreed_MXN||'')}</div></div>`).join('');
+
+      body.innerHTML = `
+        <div class="mb-3">${infoCols}</div>
+        <div class="mb-3"><b>Skills:</b> ${escapeHTML(skills)}</div>
+        <div class="mb-3"><b>Notes (field):</b>
+          <div class="small" style="white-space:pre-wrap;border:1px solid rgba(255,255,255,.08);padding:.5rem;border-radius:8px;">
+            ${notes || '<span class="text-muted">No notes.</span>'}
+          </div>
+        </div>
+        <div class="mb-3">
+          <b>Add Timeline Note</b>
+          <div class="input-group">
+            <input id="newNote" class="form-control" placeholder="Quick note...">
+            <div class="input-group-append">
+              <button class="btn btn-gold" onclick="addTimelineNote('${draw.candidate.CandidateID}')">Save</button>
+            </div>
+          </div>
+        </div>
+        <div class="mb-4"><b>Recent Activity</b><div class="mt-2">${activities}</div></div>
+        ${apps ? `<div class="mb-4"><b>Applications</b><div class="mt-2">${apps}</div></div>` : ''}
+        ${interviews ? `<div class="mb-4"><b>Interviews</b><div class="mt-2">${interviews}</div></div>` : ''}
+        ${hires ? `<div class="mb-4"><b>Hires</b><div class="mt-2">${hires}</div></div>` : ''}`;
+      openDrawer();
+    }).getCandidateDeep(candidateId);
+  };
+
+  window.addTimelineNote = function(candidateId){
+    const input = document.getElementById('newNote');
+    const text = (input && input.value || '').trim();
+    if (!text) return;
+    google.script.run.withSuccessHandler(()=>{
+      input.value = '';
+      window.openCandidateProfile(candidateId);
+    }).addCandidateNote(candidateId, null, text);
+  };
+
+  function openDrawer(){ document.getElementById('profileDrawer').style.right = '0'; }
+
+  // Toolbar helpers
+  function getSelectedIds(){
+    return [...document.querySelectorAll('#searchBody tr')].filter(tr => tr.querySelector('.rowChk')?.checked)
+           .map(tr => tr.getAttribute('data-id'));
+  }
+  function updateToolbarState(){
+    const any = getSelectedIds().length > 0;
+    ['addNewList','addExisting','exportCsv'].forEach(id=>{
+      const el = document.getElementById(id); if (el) el.disabled = !any;
+    });
+  }
+  window.updateToolbarState = updateToolbarState;
+
+  function addToNewList(){
+    const ids = getSelectedIds(); if (!ids.length) return;
+    const name = prompt('New Call List name:'); if (!name) return;
+    const sourceQuery = (document.getElementById('q').value||'').trim();
+    google.script.run.withSuccessHandler(()=>{
+      google.script.run.withSuccessHandler(populateLists).listCallLists();
+      alert('Saved to new call list.');
+    }).createCallList(name, null, null, ids.join(','), sourceQuery);
+  }
+
+  function addToExistingList(){
+    const ids = getSelectedIds(); if (!ids.length) return;
+    const listId = document.getElementById('existingList').value;
+    if (!listId) return;
+    google.script.run.addCandidatesToCallList(listId, ids);
+    alert('Added to list.');
+  }
+
+  function exportCSV(){
+    const rows = [...document.querySelectorAll('#searchBody tr')].filter(tr => tr.querySelector('.rowChk')?.checked)
+      .map(tr => {
+        const tds = tr.querySelectorAll('td');
+        return {
+          FullName: tds[1].innerText, Email: tds[2].innerText, Phone: tds[3].innerText,
+          Location: tds[4].innerText, English: tds[6].innerText, Type: tds[7].innerText,
+          Salary: tds[8].innerText, LastContact: tds[9].innerText
+        };
+      });
+    if (!rows.length) { alert('No rows selected.'); return; }
+    const header = Object.keys(rows[0]);
+    const csv = [header.join(',')].concat(rows.map(r=>header.map(h=>`"${String(r[h]).replace(/"/g,'""')}"`).join(','))).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'candidates.csv'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function escapeHTML(s){ return (s==null)?'':String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+})();
+</script>
