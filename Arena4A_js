@@ -1,0 +1,138 @@
+<script>
+/* === ARENA 4A — Quick Actions Persistence (ES5-safe) ===============
+ * Connects Quick Action forms to Activities sheet via Apps Script.
+ * Requires: Arena2 visual buttons, ActivitiesGS.gs backend.
+ */
+window.addEventListener('load', function () {
+  if (!window.Arena) { console.warn("⚠️ Arena base not found; 4A will wait."); return; }
+
+  (function (A) {
+    A.phase = "4A";
+
+    /* --------------------------------------------------------------
+     * Utilities
+     * ------------------------------------------------------------ */
+    function _log(msg){ console.log("🧩 4A:", msg); }
+    function _right(){ return document.getElementById('arena-right'); }
+    function _toast(msg){
+      var r=_right(); if(!r)return;
+      var t=document.createElement('div');
+      t.className='a2-toast';
+      t.textContent=msg;
+      r.prepend(t);
+      setTimeout(function(){ t.remove(); },2000);
+    }
+
+    /* --------------------------------------------------------------
+     * 1. Compose activity row
+     * ------------------------------------------------------------ */
+    function makeActivity(type, result, notes){
+      var now=new Date();
+      return {
+        Type: type,
+        ActivityType: type,
+        Result: result||'',
+        Notes: notes||'',
+        RecruiterID: (A.state.recruiter && A.state.recruiter.UserID) || 'USR01',
+        RecruiterName: (A.state.recruiter && A.state.recruiter.FullName) || 'Unknown',
+        CandidateID: (A.state.candidate && A.state.candidate.CandidateID) || '',
+        JobID: (A.state.job && A.state.job.JobID) || '',
+        CallListID: (A.state.callList && A.state.callList.CallListID) || '',
+        CompanyID: (A.state.company && A.state.company.CompanyID) || '',
+        CompanyName: (A.state.company && A.state.company.CompanyName) || '',
+        ClientID: (A.state.job && A.state.job.ClientID) || '',
+        ClientName: (A.state.job && A.state.job.ClientName) || '',
+        Outcome: result||'',
+        CreatedAt: now.toISOString(),
+        UpdatedAt: now.toISOString(),
+        DateTime: Utilities ? Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss") : now.toISOString()
+      };
+    }
+
+    /* --------------------------------------------------------------
+     * 2. Hook Save buttons
+     * ------------------------------------------------------------ */
+    function hookQuickActionSaves(){
+      var r=_right(); if(!r)return;
+      var self=A;
+
+      function on(id, fn){
+        var el=document.getElementById(id);
+        if(el) el.onclick=fn;
+      }
+
+      // NOTE
+      on('a2-note-save', function(){
+        var notes=r.querySelector('textarea')?r.querySelector('textarea').value:'';
+        saveActivity('Note','Saved',notes);
+      });
+
+      // REMINDER
+      on('a2-rem-save', function(){
+        var date=r.querySelector('input[type=date]').value;
+        var time=r.querySelector('input[type=time]').value;
+        var when=date+' '+time;
+        var notes=r.querySelector('textarea')?r.querySelector('textarea').value:'';
+        saveActivity('Reminder',when,notes);
+      });
+
+      // HIRE
+      on('a2-hire-save', function(){
+        var rate=r.querySelector('input[placeholder*="Daily"]').value;
+        var salary=r.querySelector('input[placeholder*="70000"]').value;
+        var notes=r.querySelector('textarea')?r.querySelector('textarea').value:'';
+        var result='Hire confirmed ('+(salary||rate)+' MXN)';
+        saveActivity('Hire',result,notes);
+      });
+
+      // FEEDBACK
+      on('a2-fb-save', function(){
+        var notes=r.querySelector('textarea')?r.querySelector('textarea').value:'';
+        saveActivity('Feedback','Saved',notes);
+      });
+
+      // EMAIL
+      on('a2-email-send', function(){
+        var notes=r.querySelector('textarea')?r.querySelector('textarea').value:'';
+        saveActivity('Email','Sent',notes);
+      });
+
+      // INTERVIEW
+      on('a2-int-save', function(){
+        var date=r.querySelector('input[type=date]').value;
+        var time=r.querySelector('input[type=time]').value;
+        var notes=r.querySelector('textarea')?r.querySelector('textarea').value:'';
+        saveActivity('Interview',date+' '+time,notes);
+      });
+
+      // STATUS
+      on('a2-status-close', function(){
+        saveActivity('Status','Viewed','Status history checked');
+      });
+    }
+
+    /* --------------------------------------------------------------
+     * 3. Save to Apps Script + refresh timeline
+     * ------------------------------------------------------------ */
+    function saveActivity(type,result,notes){
+      var act=makeActivity(type,result,notes);
+      _log("Saving activity: "+JSON.stringify(act));
+      google.script.run.withSuccessHandler(function(res){
+        _toast("✅ "+type+" saved");
+        if(typeof A.refreshTimeline==='function'){ A.refreshTimeline(); }
+      }).saveActivityRow(act);
+    }
+
+    /* --------------------------------------------------------------
+     * 4. Patch openAction so hooks refresh each time
+     * ------------------------------------------------------------ */
+    var oldOpen=A.openAction;
+    A.openAction=function(act){
+      oldOpen.call(this,act);
+      setTimeout(hookQuickActionSaves,300);
+    };
+
+    console.log("✅ Arena 4A (Quick Actions Persistence) loaded");
+  })(window.Arena);
+});
+</script>
