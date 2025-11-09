@@ -246,3 +246,161 @@
 }
 </style>
 
+<style>
+/* === Arena3 Left Column Styles === */
+.a3-company{
+  color:#e0c78b;font-weight:600;font-size:.95rem;margin-bottom:.5rem;
+}
+.a3-metrics{
+  display:flex;flex-wrap:wrap;gap:.6rem;margin:1rem 0;
+}
+.a3-metric{
+  background:rgba(199,164,104,0.08);
+  border:1px solid rgba(199,164,104,0.25);
+  border-radius:8px;
+  padding:.4rem .7rem;
+  text-align:center;
+  flex:1;
+}
+.a3-metric .m-val{display:block;color:#f3f3f3;font-size:1rem;font-weight:600;}
+.a3-metric .m-lab{display:block;color:#cdbb8d;font-size:.75rem;}
+.a3-notes{
+  font-size:.85rem;line-height:1.4;color:#ddd;background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.08);
+  padding:.5rem;border-radius:8px;
+}
+</style>
+
+<style>
+/* === Arena3 · Left Column Visuals (Phase 3A) === */
+.a3-section h3{ color:var(--ori-gold-light,#e0c78b); margin-bottom:.6rem; }
+.a3-body{ display:block; }
+
+/* Title line */
+.a3-company-name{ font-weight:700; font-size:1.05rem; color:#fff; }
+
+/* Grids */
+.a3-grid-3{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.5rem .75rem; }
+.a3-grid-2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.5rem .75rem; }
+@media (max-width:1280px){ .a3-grid-3{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:992px){ .a3-grid-3,.a3-grid-2{ grid-template-columns:1fr; } }
+
+/* Rows */
+.a3-row{ display:flex; flex-direction:column; gap:.2rem;
+  background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
+  border-radius:8px; padding:.45rem .55rem; }
+.a3-row-label{ font-size:.76rem; color:#e0c78b; opacity:.95; }
+.a3-row-val{ color:#f3f3f3; font-size:.92rem; }
+
+/* About */
+.a3-about{ margin-top:.5rem; color:#ddd; line-height:1.4; }
+
+/* Badges */
+.a3-badge{ display:inline-block; padding:.15rem .45rem; border-radius:999px; font-size:.75rem;
+  border:1px solid rgba(199,164,104,.45); color:#e0c78b; background:rgba(199,164,104,.08); }
+.a3-badge.pill{ border-color:rgba(255,255,255,.18); color:#ddd; background:rgba(255,255,255,.06); }
+.a3-badge.gold{ border-color:rgba(199,164,104,.6); color:#08221f;
+  background:linear-gradient(90deg,#c7a468,#e0c78b); font-weight:700; }
+.a3-badge.muted{ border-color:rgba(255,255,255,.18); color:#aaa; background:rgba(255,255,255,.06); }
+
+/* Job list */
+.a3-jobs{ display:flex; flex-direction:column; gap:.5rem; }
+.a3-job-item{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:.55rem .65rem; border:1px solid rgba(255,255,255,.08);
+  border-radius:10px; background:rgba(255,255,255,.03);
+}
+.a3-job-title{ color:#fff; font-weight:600; }
+.a3-job-meta{ display:flex; gap:.35rem; align-items:center; }
+
+/* Chips (Talent Map) */
+.a3-chips{ display:flex; flex-wrap:wrap; gap:.4rem; }
+.a3-chip{
+  padding:.25rem .5rem; border-radius:999px; font-size:.78rem;
+  background:rgba(199,164,104,.09); color:#e0c78b; border:1px solid rgba(199,164,104,.4);
+}
+
+/* Hires */
+.a3-hires{ display:flex; flex-direction:column; gap:.5rem; }
+.a3-hire-item{
+  padding:.5rem .6rem; border-radius:10px; background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.08);
+}
+.a3-h-name{ color:#fff; font-weight:600; }
+.a3-h-role{ color:#eaeaea; font-size:.92rem; }
+.a3-h-meta{ color:#cdbb8d; font-size:.8rem; }
+
+/* KPI grid */
+.a3-kpi-grid{ align-items:stretch; }
+.a3-kpi{
+  display:flex; flex-direction:column; justify-content:center;
+  border-radius:12px; padding:.8rem; min-height:84px;
+  background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(0,0,0,.2));
+  border:1px solid rgba(255,255,255,.08);
+}
+.a3-kpi-val{ color:#fff; font-size:1.25rem; font-weight:800; line-height:1; }
+.a3-kpi-label{ color:#cdbb8d; font-size:.82rem; margin-top:.25rem; }
+
+/* JD teaser */
+.a3-jd-summary{ color:#ddd; line-height:1.4; margin-bottom:.5rem; }
+.a3-jd-actions{ display:flex; gap:.5rem; }
+</style>
+
+<style>
+
+/* === ARENA3 visual helpers === */
+.a3-list{list-style:none;padding-left:0;}
+.a3-list li{margin:.25rem 0;border-bottom:1px dashed rgba(255,255,255,.08);padding:.25rem 0;}
+.a3-kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.6rem;}
+.a3-kpi{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
+  border-radius:8px;padding:.6rem;text-align:center;}
+.a3-kpi .kpi-num{display:block;font-size:1.25rem;font-weight:700;color:#e0c78b;}
+.a3-kpi .kpi-label{font-size:.8rem;color:#ccc;}
+
+</style>
+
+
+
+
+
+<style>
+/* === ARENA 3C — Adaptive JD Panel ============================= */
+.a3c-panel{
+  position: fixed; /* we compute exact geometry */
+  z-index: 99999;
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.28));
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.45);
+  overflow: hidden;
+  transition: left .18s ease, width .18s ease, height .18s ease, opacity .12s ease;
+  backdrop-filter: blur(2px);
+}
+.a3c-hidden{ opacity: 0; pointer-events: none; transform: translateY(4px); }
+
+.a3c-head{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:.75rem; padding:.55rem .8rem;
+  background: linear-gradient(90deg,#0b2926,#08221f);
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+.a3c-title{ color: var(--ori-gold-light,#e0c78b); font-weight:700; }
+.a3c-actions{ display:flex; gap:.4rem; }
+
+.a3c-body{
+  height: calc(100% - 46px);
+  overflow:auto;
+  padding:.75rem .9rem;
+}
+.a3c-pre{
+  white-space: pre-wrap;
+  color:#f3f3f3;
+  line-height:1.35;
+  font-size:.94rem;
+}
+
+/* Optional: make buttons compact inside the header */
+.a3c-head .btn-sm{ padding:.25rem .55rem; border-radius:8px; }
+</style>
+
+
