@@ -1,0 +1,100 @@
+<script>
+/* === ARENA 4B — Live Timeline Integration (ES5-safe) =====================
+ * Loads activities from the backend using getActivitiesForContext()
+ * and renders them inside the Arena right column timeline view.
+ */
+window.addEventListener('load', function () {
+  if (!window.Arena) {
+    console.warn('⚠️ Arena base not found; Arena4B will wait.');
+    return;
+  }
+
+  (function (A) {
+
+    /* ---------- Utilities ---------- */
+    function _log(msg){ console.log('🧩 4B:', msg); }
+    function _rightCol(){ return document.getElementById('arena-right'); }
+
+    /* ---------- Hook openAction(timeline) ---------- */
+    var oldOpen = A.openAction;
+    A.openAction = function(act){
+      if (act !== 'timeline') {
+        oldOpen.call(this, act);
+        return;
+      }
+
+      var right = _rightCol();
+      if (!right) return;
+
+      var candId = (this.state.candidate && this.state.candidate.CandidateID) || '';
+      var jobId  = (this.state.job && this.state.job.JobID) || '';
+
+      right.innerHTML =
+        '<div class="arena-card"><h3>Timeline</h3>' +
+        '<div class="arena-content timeline-wrap" id="a4b-timeline">Loading activities...</div>' +
+        '<button class="btn btn-outline-light btn-block mt-2" id="a4b-back">⬅ Back</button></div>';
+
+      document.getElementById('a4b-back').onclick = function(){
+        A.renderActions(A.state.candidate, A.state.recruiter);
+      };
+
+      // 🔹 Fetch from backend
+      google.script.run
+        .withSuccessHandler(function(list){
+          A._renderLiveTimeline(list || []);
+        })
+        .withFailureHandler(function(e){
+          document.getElementById('a4b-timeline').innerHTML =
+            '<div class="text-danger">⚠️ Failed to load activities: '+ e.message +'</div>';
+        })
+        .getActivitiesForContext(candId, jobId);
+    };
+
+    /* ---------- Renderer ---------- */
+    A._renderLiveTimeline = function(list){
+      var box = document.getElementById('a4b-timeline');
+      if (!box) return;
+      if (!list.length){
+        box.innerHTML = '<p class="text-muted">No activities yet.</p>';
+        return;
+      }
+
+      var html = '';
+      for (var i=0; i<list.length; i++){
+        var a = list[i];
+        var type = a.Type || '—';
+        var res  = a.Result || '';
+        var note = a.Notes || '';
+        var job  = a.JobID || '';
+        var cdt  = a.CreatedAt || '';
+        var color = (type === 'Hire') ? 'gold' :
+                    (type === 'Interview') ? 'blue' :
+                    (type === 'Note') ? 'gray' :
+                    (type === 'Reminder') ? 'green' :
+                    'muted';
+
+        html += '<div class="timeline-item">'+
+          '<span class="t-type '+color+'">'+ type +'</span>'+
+          '<span class="t-date">'+ cdt +'</span><br>'+
+          (job ? '<b>'+job+'</b><br>' : '')+
+          (res ? '<i>'+res+'</i><br>' : '')+
+          (note ? '<div class="ti-cmt">'+note+'</div>' : '')+
+        '</div>';
+      }
+      box.innerHTML = html;
+    };
+
+    /* ---------- Auto-refresh helper after saving ---------- */
+    A.refreshTimeline = function(){
+      if (!A.state.candidate) return;
+      var candId = A.state.candidate.CandidateID || '';
+      var jobId  = (A.state.job && A.state.job.JobID) || '';
+      google.script.run
+        .withSuccessHandler(function(list){ A._renderLiveTimeline(list||[]); })
+        .getActivitiesForContext(candId, jobId);
+    };
+
+    console.log('✅ Arena 4B (Live Timeline Integration) loaded');
+  })(window.Arena);
+});
+</script>
