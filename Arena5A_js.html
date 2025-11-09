@@ -1,0 +1,274 @@
+<script>
+/* === ARENA · Phase 5A — Call List Selector & Context Loader (ES5-safe) ===
+ * Scope: enhances Arena with:
+ *  - "Select Call List" launcher in the top bar
+ *  - Modal selector listing CallLists
+ *  - Context load: Job + Company + Candidates for the chosen Call List
+ *  - Auto-render left/middle/right + candidate navigation
+ * Depends on backend funcs in ArenaData.gs:
+ *   - getCallLists()
+ *   - getCandidatesByCallList(callListId)
+ *   - getJobForCallList(callListId)
+ * Uses existing Arena methods: renderJob, renderCandidate, renderActions, _updateCounter, nav, hide
+ */
+window.addEventListener('load', function () {
+  if (!window.Arena) {
+    console.warn('⚠️ Arena base not found; Phase 5A will wait.');
+    return;
+  }
+
+  (function (A) {
+
+    /* ------------------------ State additions ------------------------ */
+    if (!A.state) A.state = {};
+    A.state.activeList = A.state.activeList || null;         // { CallListID, CallListName, JobID, ... }
+    A.state.listCandidates = A.state.listCandidates || [];    // ['CAND0001','CAND0002',...]
+    A.state.company = A.state.company || null;                // optional, for 3A/3C
+
+    /* ------------------------ Topbar hook ---------------------------- */
+    var _origShow = A.show;
+    A.show = function (payload) {
+      _origShow.call(this, payload || {});
+      // Ensure the topbar gets a "Switch List" / current list button
+      installTopbarSwitch();
+      // If no active list chosen yet, prompt selector
+      if (!A.state.activeList) {
+        A.openCallListSelector();
+      } else {
+        // Ensure context is loaded (e.g., after fresh open)
+        // If candidates already present, just refresh header
+        updateTopbarListBadge();
+        if (!A.state.listCandidates || !A.state.listCandidates.length) {
+          A._loadContextFromCallList(A.state.activeList.CallListID);
+        }
+      }
+    };
+
+    function installTopbarSwitch() {
+      var top = document.getElementById('arena-topbar');
+      if (!top) return;
+
+      // Left side already contains Prev / Counter / Next
+      // We add a centered/current list badge, and keep Close at right.
+      if (!document.getElementById('a5a-list-switch')) {
+        var badge = document.createElement('button');
+        badge.id = 'a5a-list-switch';
+        badge.className = 'btn btn-outline-light btn-sm';
+        badge.textContent = '📋 Select Call List';
+        badge.onclick = function(){ A.openCallListSelector(); };
+        // Insert before Close button
+        var closeBtn = document.getElementById('arena-close');
+        if (closeBtn && closeBtn.parentNode) {
+          closeBtn.parentNode.insertBefore(badge, closeBtn);
+        } else {
+          top.appendChild(badge);
+        }
+      }
+    }
+
+    function updateTopbarListBadge() {
+      var b = document.getElementById('a5a-list-switch');
+      if (!b) return;
+      var name = (A.state.activeList && (A.state.activeList.CallListName || A.state.activeList.CallListID)) || 'Select Call List';
+      b.textContent = '📋 ' + name;
+    }
+
+    /* ------------------------ Selector Modal ------------------------- */
+    A.openCallListSelector = function () {
+      var root = document.getElementById('arena-root');
+      if (!root) return;
+
+      // Create overlay if missing
+      var overlay = document.getElementById('a5a-overlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'a5a-overlay';
+        overlay.style.position = 'fixed';
+        overlay.style.inset = '0';
+        overlay.style.background = 'rgba(0,0,0,0.45)';
+        overlay.style.zIndex = '10000';
+        overlay.style.display = 'flex';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+        root.appendChild(overlay);
+      }
+      // Build modal container
+      overlay.innerHTML = '' +
+        '<div id="a5a-modal" style="width:720px;max-width:95%;background:linear-gradient(180deg,rgba(255,255,255,0.06),rgba(0,0,0,0.35));' +
+        'border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,0.5)">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+            '<h3 style="color:#e0c78b;margin:0;font-size:1.1rem">Select a Call List</h3>' +
+            '<button id="a5a-close" class="btn btn-outline-light btn-sm">✖</button>' +
+          '</div>' +
+          '<div id="a5a-body" style="max-height:60vh;overflow:auto;padding-right:4px">' +
+            '<div style="color:#cdbb8d;margin-bottom:6px">Pick a list to load Job, Company and Candidates context.</div>' +
+            '<div id="a5a-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px"></div>' +
+          '</div>' +
+        '</div>';
+
+      document.getElementById('a5a-close').onclick = function(){
+        overlay.remove();
+      };
+
+      // Load lists
+      google.script.run.withSuccessHandler(function (lists) {
+        renderLists(lists || []);
+      }).getCallLists();
+
+      function renderLists(lists) {
+        var grid = document.getElementById('a5a-grid');
+        if (!grid) return;
+        if (!lists.length) {
+          grid.innerHTML = '<div style="grid-column:1/-1;color:#eee">No Call Lists found.</div>';
+          return;
+        }
+        var html = '';
+        for (var i = 0; i < lists.length; i++) {
+          var L = lists[i];
+          var title = (L.CallListName || L.CallListID || 'Unnamed');
+          var jobId = L.JobID || '—';
+          var status = L.Status || '—';
+          html += '' +
+            '<div class="a5a-card" data-cid="'+ escapeHtml(L.CallListID) +'" ' +
+                 'style="border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:10px;' +
+                        'background:rgba(255,255,255,0.04);cursor:pointer">' +
+              '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+                '<div style="color:#fff;font-weight:600">'+ escapeHtml(title) +'</div>' +
+                '<span class="a5a-pill" style="padding:.1rem .4rem;border-radius:999px;' +
+                  'background:rgba(199,164,104,0.2);border:1px solid rgba(199,164,104,0.5);color:#e0c78b;font-size:.8rem">' +
+                  escapeHtml(status) + '</span>' +
+              '</div>' +
+              '<div style="color:#cdbb8d;font-size:.86rem">Job: <b style="color:#e9e2c7">'+ escapeHtml(jobId) +'</b></div>' +
+            '</div>';
+        }
+        grid.innerHTML = html;
+
+        // click handlers
+        var cards = grid.getElementsByClassName('a5a-card');
+        for (var j = 0; j < cards.length; j++) {
+          cards[j].onclick = function () {
+            var id = this.getAttribute('data-cid');
+            // Find full list row again
+            var chosen = null;
+            for (var k = 0; k < lists.length; k++) {
+              if (lists[k].CallListID === id) { chosen = lists[k]; break; }
+            }
+            if (!chosen) return;
+            A.state.activeList = chosen;
+            updateTopbarListBadge();
+            // Load full context then close overlay
+            A._loadContextFromCallList(chosen.CallListID, function () {
+              var ov = document.getElementById('a5a-overlay');
+              if (ov) ov.remove();
+            });
+          };
+        }
+      }
+
+      function escapeHtml(s) {
+        s = (s == null ? '' : String(s));
+        return s.replace(/[&<>"']/g, function (m) {
+          return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]);
+        });
+      }
+    };
+
+    /* -------------------- Context Loader (core) ---------------------- */
+    A._loadContextFromCallList = function (callListId, done) {
+      // 1) Job (and company name from job row), 2) Candidates in the list
+      var self = this;
+
+      google.script.run.withSuccessHandler(function (jobRow) {
+        // Store job into state, and also a minimal company object for left panel
+        self.state.job = jobRow || null;
+        self.state.company = jobRow ? { CompanyName: jobRow.CompanyName } : null;
+
+        // 2) Then load candidates belonging to the list
+        google.script.run.withSuccessHandler(function (items) {
+          // Build candidateID array
+          var ids = [];
+          for (var i = 0; i < (items || []).length; i++) {
+            if (items[i].CandidateID) ids.push(items[i].CandidateID);
+          }
+          self.state.listCandidates = ids;
+          // Position index to first
+          self.state.index = 0;
+
+          // 3) Render left panel (job/company)
+          self.renderJob(self.state.job);
+
+          // 4) Load first candidate if exists; else clear middle/right
+          if (ids.length) {
+            self._loadAndRenderCandidate(ids[0], function () {
+              self._updateCounter();
+              if (typeof done === 'function') done();
+            });
+          } else {
+            // Empty list
+            var mid = document.getElementById('arena-middle');
+            var right = document.getElementById('arena-right');
+            if (mid) mid.innerHTML = '<div class="arena-card"><h3>Candidate Profile</h3><div>No candidates in this list.</div></div>';
+            if (right) right.innerHTML = '<div class="arena-card"><h3>Quick Actions</h3><div>—</div></div>';
+            self._updateCounter();
+            if (typeof done === 'function') done();
+          }
+        }).getCandidatesByCallList(callListId);
+
+      }).getJobForCallList(callListId);
+    };
+
+    /* ---------------- Candidate Loader helper ----------------------- */
+    A._loadAndRenderCandidate = function (candidateId, cb) {
+      var self = this;
+      var loader = document.getElementById('arena-loader');
+      if (loader) { loader.textContent = 'Loading…'; loader.classList.remove('hidden'); }
+
+      google.script.run.withSuccessHandler(function (detail) {
+        var cand = (detail && detail.candidate) ? detail.candidate : null;
+        self.state.candidate = cand;
+        self.state.original  = self._buildOriginalSnapshot(cand);
+        // Middle + Right refresh
+        self.renderCandidate(cand);
+        self.renderActions(cand, self.state.recruiter || '—');
+        if (loader) loader.classList.add('hidden');
+        if (typeof cb === 'function') cb();
+      }).getCandidateDeep(candidateId);
+    };
+
+    /* --------------- Override nav to use call list ------------------ */
+    var _origNav = A.nav;
+    A.nav = function (step) {
+      if (!A.state || !A.state.listCandidates || !A.state.listCandidates.length) {
+        // Fallback to original (in case)
+        return _origNav.call(this, step);
+      }
+      var next = A.state.index + step;
+      if (next < 0 || next >= A.state.listCandidates.length) return;
+      A.state.index = next;
+      var candId = A.state.listCandidates[next];
+
+      var mid = document.getElementById('arena-middle');
+      if (mid) mid.style.opacity = '0';
+      var self = this;
+      setTimeout(function(){ self._loadAndRenderCandidate(candId, function(){
+        if (mid) mid.style.opacity = '1';
+        self._updateCounter();
+      });}, 120);
+    };
+
+    /* -------------------- Tiny style tweaks ------------------------- */
+    // Optional: styles for small pill/overlay (injected once)
+    if (!document.getElementById('a5a-style')) {
+      var st = document.createElement('style');
+      st.id = 'a5a-style';
+      st.textContent =
+        '.a5a-pill{font-weight:600}' +
+        '#a5a-grid .a5a-card:hover{transform:translateY(-1px);transition:transform .12s ease}' ;
+      document.head.appendChild(st);
+    }
+
+    console.log('✅ Arena · Phase 5A (Call List Selector & Context Loader) loaded');
+  })(window.Arena);
+
+});
+</script>
