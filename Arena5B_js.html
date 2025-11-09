@@ -1,0 +1,66 @@
+<script>
+/* === ARENA · Phase 5B — Candidate Loader + Navigator (ES5-safe) === */
+window.addEventListener('load', function(){
+  if (!window.Arena){ console.warn('⚠️ Arena base not found'); return; }
+
+  (function(A){
+
+    /* ---- Simple candidate renderer (center panel) ---- */
+    A.renderCandidate = function(c){
+      var mid = document.getElementById('arena-middle');
+      if(!mid){return;}
+      if(!c){
+        mid.innerHTML = '<div class="arena-card"><h3>Candidate</h3><div>No candidate data.</div></div>';
+        return;
+      }
+      var h = '';
+      h += '<div class="arena-card">';
+      h += '<h3>'+ (c.FullName||'Unnamed') +'</h3>';
+      h += '<div class="a5b-grid">';
+      h += cell('Email', c.Email);
+      h += cell('Phone', c.Phone);
+      h += cell('Status', c.CandidateStatus);
+      h += cell('Title', c.CurrentTitle);
+      h += cell('City', (c.City||'') + (c.State? ', '+c.State:'' ));
+      h += '</div>';
+      h += '</div>';
+      mid.innerHTML = h;
+    };
+
+    function cell(label,val){
+      return '<div class="a5b-cell"><div class="a5b-l">'+label+'</div><div class="a5b-v">'+(val||'—')+'</div></div>';
+    }
+
+    /* ---- Counter helper ---- */
+    A._updateCounter = function(){
+      var c = document.getElementById('arena-counter');
+      if(!c) return;
+      var i = (A.state.index||0)+1;
+      var total = (A.state.listCandidates||[]).length||0;
+      c.textContent = i+' / '+total;
+    };
+
+    /* ---- Initial context from 5A ---- */
+    if(A.state && A.state.listCandidates && A.state.listCandidates.length){
+      var first = A.state.listCandidates[0];
+      A._loadAndRenderCandidate(first, function(){
+        A._updateCounter();
+      });
+    }
+
+    /* ---- Small style tweaks ---- */
+    if(!document.getElementById('a5b-style')){
+      var st = document.createElement('style');
+      st.id='a5b-style';
+      st.textContent=
+        '.a5b-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px}' +
+        '.a5b-cell{padding:2px 0;border-bottom:1px dashed rgba(255,255,255,0.08)}' +
+        '.a5b-l{color:#c7a468;font-size:.82rem}' +
+        '.a5b-v{color:#fff;font-size:.88rem;font-weight:500}' ;
+      document.head.appendChild(st);
+    }
+
+    console.log('✅ Arena · Phase 5B (Candidate Loader + Navigator) loaded');
+  })(window.Arena);
+});
+</script>
