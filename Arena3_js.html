@@ -1,0 +1,407 @@
+<!-- === ARENA 3 · Phase 3B — Company Actions Launcher (visual only, ES5-safe) ===
+     Scope: LEFT column (#arena-left) only. Non-destructive. No backend calls.
+     - Two-per-row grid launcher (mirrors Quick Actions vibe)
+     - Each button reveals its section; Back button returns to launcher
+     - Uses the same 3A visuals (Overview, Current Role, All Jobs, Talent Map, Hires, KPIs, Job Description)
+-->
+<style>
+  /* --- Compact, elegant grid launcher (left column only) --- */
+  #arena-left .a3-launcher .a3-menu-grid{
+    display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.6rem;
+  }
+  #arena-left .a3-launcher .a3-btn{
+    display:flex; align-items:center; justify-content:center;
+    border:1px solid rgba(255,255,255,.12);
+    background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(0,0,0,.18));
+    border-radius:12px; padding:.6rem .7rem; cursor:pointer;
+    color:#eee; text-align:center; font-weight:600;
+    transition:transform .08s ease, border-color .15s ease, background .15s ease;
+  }
+  #arena-left .a3-launcher .a3-btn:hover{ transform:translateY(-1px); border-color:rgba(199,164,104,.6); }
+  #arena-left .a3-launcher .a3-btn.gold{ background:linear-gradient(180deg,rgba(199,164,104,.15),rgba(0,0,0,.18)); color:#f5e7bf; }
+  #arena-left .a3-subtle{ color:#cdbb8d; opacity:.95; margin-top:.35rem; font-size:.86rem; }
+
+  /* Reuse / ensure core 3A visuals */
+  #arena-left .a3-section{ margin-bottom:.75rem; }
+  #arena-left .a3-company-name{ font-size:1.1rem; font-weight:700; color:#f5e7bf; }
+  #arena-left .a3-grid-3{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.5rem .75rem; }
+  #arena-left .a3-grid-2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.5rem .75rem; }
+  #arena-left .a3-row{ display:flex; flex-direction:column; gap:.15rem; }
+  #arena-left .a3-row-label{ font-size:.78rem; color:#e0c78b; font-weight:600; opacity:.9; }
+  #arena-left .a3-row-val{ font-size:.92rem; color:#f3f3f3; border:1px solid rgba(255,255,255,.08); border-radius:8px; padding:.34rem .5rem; background:rgba(255,255,255,.04); }
+  #arena-left .a3-badge{ display:inline-block; padding:.12rem .45rem; border-radius:999px; border:1px solid rgba(255,255,255,.18); font-size:.72rem; }
+  #arena-left .a3-badge.gold{ background:rgba(199,164,104,.18); border-color:rgba(199,164,104,.5); color:#f5e7bf; }
+  #arena-left .a3-badge.muted{ background:rgba(255,255,255,.06); color:#ddd; }
+  #arena-left .a3-badge.pill{ background:rgba(255,255,255,.06); color:#eee; }
+  #arena-left .a3-about{ margin-top:.5rem; color:#eaeaea; opacity:.95; line-height:1.25rem; }
+
+  #arena-left .a3-jobs .a3-job-item{
+    display:flex; align-items:center; justify-content:space-between;
+    border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:.45rem .6rem;
+    background:rgba(255,255,255,.04); margin-bottom:.45rem;
+  }
+  #arena-left .a3-job-title{ color:#fff; font-weight:600; }
+  #arena-left .a3-job-meta{ display:flex; gap:.4rem; align-items:center; }
+
+  #arena-left .a3-chips{ display:flex; flex-wrap:wrap; gap:.4rem; }
+  #arena-left .a3-chip{
+    border:1px solid rgba(199,164,104,.45); border-radius:999px; padding:.18rem .5rem;
+    color:#e0c78b; background:rgba(199,164,104,.07);
+  }
+
+  #arena-left .a3-hires .a3-hire-item{
+    border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:.45rem .55rem;
+    background:rgba(255,255,255,.04); margin-bottom:.45rem;
+  }
+  #arena-left .a3-h-name{ color:#fff; font-weight:700; }
+  #arena-left .a3-h-role{ color:#eaeaea; }
+  #arena-left .a3-h-meta{ color:#cdbb8d; font-size:.85rem; }
+
+  #arena-left .a3-kpi-grid .a3-kpi{
+    background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(0,0,0,.2));
+    border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:.5rem .6rem;
+  }
+  #arena-left .a3-kpi-val{ color:#f5e7bf; font-weight:800; font-size:1.05rem; }
+  #arena-left .a3-kpi-label{ color:#ddd; font-size:.83rem; opacity:.95; }
+
+  #arena-left .a3-jd-summary{ color:#eaeaea; line-height:1.25rem; }
+  #arena-left .a3-jd-actions{ margin-top:.5rem; }
+
+  /* Back button row inside the left panel cards */
+  #arena-left .a3-back-row{ margin-top:.5rem; display:flex; justify-content:flex-start; }
+</style>
+
+<script>
+window.addEventListener('load', function () {
+  if (!window.Arena) { console.warn('⚠️ Arena base not found; Arena3 will wait.'); return; }
+
+  (function (A) {
+    /* ---------- helpers ---------- */
+    function _leftCol(){ return document.getElementById('arena-left'); }
+    function _s(v,d){ return (v==null || v==='') ? (d||'') : String(v); }
+    function _badge(text, cls){ return '<span class="a3-badge '+(cls||'')+'">'+ text +'</span>'; }
+    function _kpi(label,value){
+      return '<div class="a3-kpi"><div class="a3-kpi-val">'+value+'</div><div class="a3-kpi-label">'+label+'</div></div>';
+    }
+    function _section(title, bodyHtml){
+      var h  = '<div class="arena-card a3-section">';
+          h += '  <h3>'+ title +'</h3>';
+          h += '  <div class="a3-body">'+ bodyHtml +'</div>';
+          h += '</div>';
+      return h;
+    }
+    function _grid(cls, inner){ return '<div class="'+cls+'">'+ inner +'</div>'; }
+    function _row(label,val){
+      return '<div class="a3-row"><div class="a3-row-label">'+label+'</div><div class="a3-row-val">'+val+'</div></div>';
+    }
+
+    /* ---------- section builders (same visuals as 3A) ---------- */
+    function buildCompanyOverview(company){
+      var name     = _s(company && company.CompanyName, 'TechNova Inc.');
+      var industry = _s(company && company.Industry, 'Software & IT Services');
+      var size     = _s(company && company.CompanySize, '200–500');
+      var hq       = _s(company && (company.HQ_City || company.HQ_Country), 'CDMX, MX');
+      var about    = _s(company && company.About, 'Digital products, cloud, and data platforms.');
+
+      var grid = _row('Industry', industry) + _row('Company Size', size) + _row('HQ', hq);
+      var body = ''
+        + '<div class="a3-title-line"><div class="a3-company-name">'+ name +'</div></div>'
+        + _grid('a3-grid-3', grid)
+        + '<div class="a3-about">'+ about +'</div>';
+      return _section('🏢 Company Overview', body);
+    }
+
+    function buildCurrentJobSummary(job){
+      var title  = _s(job && job.JobTitle, 'Senior Full-Stack Developer');
+      var loc    = _s(job && (job.Location_City || job.Location_Country), 'CDMX, MX');
+      var model  = _s(job && job.WorkModel, 'Hybrid');
+      var salary = _s(job && (job.SalaryMin_MXN && job.SalaryMax_MXN ? (job.SalaryMin_MXN + '–' + job.SalaryMax_MXN) : ''), 'MXN 60k–80k');
+      var status = _s(job && job.Status, 'Open');
+      var code   = _s(job && job.JobID, 'JOB0001');
+
+      var grid = ''
+        + _row('Role', title)
+        + _row('Location', loc)
+        + _row('Work Model', model)
+        + _row('Salary Range', salary)
+        + _row('Status', _badge(status, status==='Open'?'gold':'muted'))
+        + _row('Job ID', code);
+      return _section('💼 Current Job Summary', _grid('a3-grid-3', grid));
+    }
+
+    function buildAllJobsList(jobs){
+      var list = jobs && jobs.length ? jobs : [
+        { JobID:'JOB0001', JobTitle:'Senior Full-Stack Dev', Status:'Open' },
+        { JobID:'JOB0002', JobTitle:'Data Engineer',         Status:'Open' },
+        { JobID:'JOB0003', JobTitle:'QA Automation',         Status:'Closed' }
+      ];
+      var h = '<div class="a3-jobs">';
+      for (var i=0;i<list.length;i++){
+        var j = list[i], cls = j.Status==='Open'?'gold':'muted';
+        h += '<div class="a3-job-item">'
+          +   '<div class="a3-job-title">'+ _s(j.JobTitle,'—') +'</div>'
+          +   '<div class="a3-job-meta">'+ _badge(_s(j.JobID,''),'pill') + _badge(_s(j.Status,'—'), cls) +'</div>'
+          + '</div>';
+      }
+      h += '</div>';
+      return _section('📋 All Jobs at This Company', h);
+    }
+
+    function buildTalentMap(){
+      var chips = ['Backend (5)','Frontend (3)','QA (2)','Data (4)','PM (2)'];
+      var h = '<div class="a3-chips">';
+      for (var i=0;i<chips.length;i++){ h += '<span class="a3-chip">'+ chips[i] +'</span>'; }
+      h += '</div>';
+      return _section('📊 Talent Map', h);
+    }
+
+    function buildRecentHires(){
+      var hires = [
+        { name:'A. García', role:'Data Engineer', date:'2025-09-12', rec:'Oriol' },
+        { name:'M. López',  role:'QA Automation', date:'2025-08-02', rec:'Ana'   }
+      ];
+      var h = '<div class="a3-hires">';
+      for (var i=0;i<hires.length;i++){
+        var x = hires[i];
+        h += '<div class="a3-hire-item"><div class="a3-h-name">'+x.name+'</div><div class="a3-h-role">'+x.role+'</div><div class="a3-h-meta">'+x.date+' · '+x.rec+'</div></div>';
+      }
+      h += '</div>';
+      return _section('🧍 Recent Hires', h);
+    }
+
+    function buildKPIs(){
+      var h = _kpi('Open Roles','3') + _kpi('Avg Time-to-Hire','27d') + _kpi('Active Candidates','18') + _kpi('Submit → Interview','42%');
+      return _section('📈 Company KPIs', _grid('a3-grid-2 a3-kpi-grid', h));
+    }
+
+    function buildJDTeaser(job){
+      var summary = _s(job && job.JobDescription, 'Brief summary of responsibilities, stack, and expectations…');
+      var link    = _s(job && job.PublicJDURL, '');
+      var button  = link
+        ? '<a class="btn btn-outline-light" href="'+link+'" target="_blank" rel="noopener">Download Spec</a>'
+        : '<button class="btn btn-outline-light" id="a3-jd-open" disabled>Open JD (coming in 3C)</button>';
+      var body = '<div class="a3-jd-summary">'+summary+'</div><div class="a3-jd-actions">'+button+'</div>';
+      return _section('📄 Job Description', body);
+    }
+
+    /* ---------- launcher & router ---------- */
+    A.renderCompanyPanel = function(){
+      var left = _leftCol(); if(!left) return;
+
+      var card  = '<div class="arena-card a3-launcher">';
+          card +=   '<h3>Company Actions</h3>';
+          card +=   '<div class="a3-menu-grid">';
+          card +=     '<button class="a3-btn gold" id="a3-btn-overview">🏢 Overview</button>';
+          card +=     '<button class="a3-btn"      id="a3-btn-role">💼 Current Role</button>';
+          card +=     '<button class="a3-btn"      id="a3-btn-jobs">📋 All Jobs</button>';
+          card +=     '<button class="a3-btn"      id="a3-btn-map">📊 Talent Map</button>';
+          card +=     '<button class="a3-btn"      id="a3-btn-hires">🧍 Recent Hires</button>';
+          card +=     '<button class="a3-btn"      id="a3-btn-kpis">📈 KPIs</button>';
+          card +=     '<button class="a3-btn"      id="a3-btn-jd">📄 Job Description</button>';
+          card +=   '</div>';
+          card +=   '<div class="a3-subtle">Open a section to work within the left panel. Back returns here.</div>';
+          card += '</div>';
+
+      left.innerHTML = card;
+
+      // wire buttons (strictly scoped to left column)
+      var self=this;
+      function on(id, fn){ var el=document.getElementById(id); if(el) el.onclick=fn; }
+      on('a3-btn-overview', function(){ self.openCompanySection('overview'); });
+      on('a3-btn-role',     function(){ self.openCompanySection('role'); });
+      on('a3-btn-jobs',     function(){ self.openCompanySection('jobs'); });
+      on('a3-btn-map',      function(){ self.openCompanySection('map'); });
+      on('a3-btn-hires',    function(){ self.openCompanySection('hires'); });
+      on('a3-btn-kpis',     function(){ self.openCompanySection('kpis'); });
+      on('a3-btn-jd',       function(){ self.openCompanySection('jd'); });
+    };
+
+    A.openCompanySection = function(which){
+      var left=_leftCol(); if(!left) return;
+
+      // pull what we can from Arena state (placeholders still ok)
+      var job     = (this.state && this.state.job) || null;
+      var company = job ? { CompanyName: job.CompanyName } : null;
+      var html='';
+
+      if(which==='overview') html = buildCompanyOverview(company);
+      else if(which==='role') html = buildCurrentJobSummary(job);
+      else if(which==='jobs') html = buildAllJobsList(null);
+      else if(which==='map')  html = buildTalentMap();
+      else if(which==='hires')html = buildRecentHires();
+      else if(which==='kpis') html = buildKPIs();
+      else if(which==='jd')   html = buildJDTeaser(job);
+      else { this.renderCompanyPanel(); return; }
+
+      // inject + back
+      html += '<div class="a3-back-row"><button class="btn btn-outline-light" id="a3-back-left">⬅ Back</button></div>';
+      left.innerHTML = html;
+
+      var self=this, back=document.getElementById('a3-back-left');
+      if(back) back.onclick=function(){ self.renderCompanyPanel(); };
+    };
+
+    /* ---------- safe hook after base renderJob ---------- */
+    var _origRenderJob = A.renderJob;
+    A.renderJob = function(job){
+      _origRenderJob.call(this, job);
+      // whenever a job is rendered, show the launcher (you can switch to a default section if preferred)
+      this.renderCompanyPanel();
+    };
+
+    console.log('✅ Arena3 · Phase 3B (Company Launcher, grid) loaded');
+  })(window.Arena);
+});
+</script>
+
+
+
+
+
+
+<script>
+/* === ARENA 3C — Adaptive JD Panel (visual only, ES5-safe) ===
+ * Scope: lives inside #arena-root, overlays columns 1 or 1+2.
+ * Controls: Open from "View Full JD" button, Collapse (col 1) / Expand (cols 1+2), Close.
+ */
+window.addEventListener('load', function () {
+  if (!window.Arena) { console.warn('⚠️ Arena base not found; 3C will wait.'); return; }
+
+  (function (A) {
+    var PANEL_ID = 'a3-jd-panel';
+    var mode = 'cols12'; // 'col1' or 'cols12'
+    var observersAttached = false;
+
+    function _root()  { return document.getElementById('arena-root'); }
+    function _left()  { return document.getElementById('arena-left'); }
+    function _mid()   { return document.getElementById('arena-middle'); }
+    function _panel() { return document.getElementById(PANEL_ID); }
+
+    function _ensurePanel() {
+      var r = _root(); if (!r) return null;
+      var p = _panel();
+      if (p) return p;
+
+      var wrap = document.createElement('div');
+      wrap.id = PANEL_ID;
+      wrap.className = 'a3c-panel a3c-hidden';
+      wrap.innerHTML =
+        '<div class="a3c-head">'+
+          '<div class="a3c-title">Job Description</div>'+
+          '<div class="a3c-actions">'+
+            '<button class="btn btn-outline-light btn-sm" id="a3c-toggle">↔ Expand</button>'+
+            '<a class="btn btn-outline-light btn-sm" id="a3c-download" href="#" target="_blank" rel="noopener" style="display:none">⤵ Download Spec</a>'+
+            '<button class="btn btn-gold btn-sm" id="a3c-close">✖ Close</button>'+
+          '</div>'+
+        '</div>'+
+        '<div class="a3c-body"><pre class="a3c-pre" id="a3c-content"></pre></div>';
+      r.appendChild(wrap);
+
+      // Wire controls
+      document.getElementById('a3c-close').onclick = function(){ hidePanel(); };
+      document.getElementById('a3c-toggle').onclick = function(){
+        mode = (mode === 'col1') ? 'cols12' : 'col1';
+        layoutPanel();
+        this.textContent = (mode === 'col1') ? '↔ Expand' : '↔ Narrow';
+      };
+
+      // Reflow on resize
+      window.addEventListener('resize', layoutPanel);
+      window.addEventListener('scroll', layoutPanel, { passive: true });
+
+      return wrap;
+    }
+
+    function layoutPanel() {
+      var p = _panel(); if (!p) return;
+      var l = _left();  var m = _mid(); if (!l) return;
+
+      var rL = l.getBoundingClientRect();
+      var targetLeft = rL.left;
+      var targetWidth = rL.width;
+
+      if (mode === 'cols12' && m) {
+        var rM = m.getBoundingClientRect();
+        // Span from left edge of col1 to right edge of col2
+        targetWidth = (rM.right - rL.left);
+      }
+
+      p.style.left   = Math.round(targetLeft) + 'px';
+      p.style.top    = Math.round(rL.top) + 'px';
+      p.style.width  = Math.round(targetWidth) + 'px';
+      p.style.height = Math.max(200, Math.round(window.innerHeight - rL.top - 12)) + 'px';
+    }
+
+    function showPanel(text, downloadUrl) {
+      var p = _ensurePanel(); if (!p) return;
+      var content = document.getElementById('a3c-content');
+      var dl = document.getElementById('a3c-download');
+
+      // Fill content (plain text)
+      content.textContent = text || 'No job specification available.';
+
+      // Download link
+      if (downloadUrl) {
+        dl.style.display = '';
+        dl.href = downloadUrl;
+      } else {
+        dl.style.display = 'none';
+        dl.removeAttribute('href');
+      }
+
+      // Default open over columns 1+2
+      mode = 'cols12';
+      document.getElementById('a3c-toggle').textContent = '↔ Narrow';
+
+      p.classList.remove('a3c-hidden');
+      layoutPanel();
+
+      // Keep position in sync while the underlying DOM might reflow
+      if (!observersAttached) {
+        observersAttached = true;
+        var iv = setInterval(function(){
+          if (!_panel()) { clearInterval(iv); observersAttached = false; return; }
+          layoutPanel();
+        }, 300);
+        setTimeout(function(){ clearInterval(iv); observersAttached = false; }, 5000);
+      }
+    }
+
+    function hidePanel() {
+      var p = _panel(); if (!p) return;
+      p.classList.add('a3c-hidden');
+    }
+
+    // Public hook so other modules can reuse this viewer later (e.g., CV)
+    A.openJDPanel = function (opts) {
+      opts = opts || {};
+      var job = A.state && A.state.job ? A.state.job : {};
+      var txt = typeof opts.text === 'string' ? opts.text : (job.JobDescription || 'Brief summary of responsibilities, stack, and expectations…');
+      var url = typeof opts.url  === 'string' ? opts.url  : (job.PublicJDURL || '');
+      showPanel(txt, url);
+    };
+    A.closeJDPanel = hidePanel;
+
+    // Event delegation: open when clicking the JD button inside the left column
+    var left = _left();
+    if (left) {
+      left.addEventListener('click', function(ev){
+        var t = ev.target;
+        if (!t) return;
+
+        // Support both the earlier disabled button and the new "View Full JD" actions
+        if (t.id === 'a3-jd-open' || t.classList.contains('a3-open-jd')) {
+          ev.preventDefault();
+          A.openJDPanel({});
+        }
+      });
+    }
+
+    // Also add a small API to open from anywhere:
+    // window.Arena.openJDPanel({ text: '...', url: '...' });
+
+    console.log('✅ Arena3 · Phase 3C (Adaptive JD Panel) loaded');
+  })(window.Arena);
+});
+</script>
+
