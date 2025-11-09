@@ -1,0 +1,84 @@
+<script>
+/* === ARENA 3D — Data Wiring & Auto-JD Loader ===========================
+ * Connects Arena3 visual panels with Apps Script data providers.
+ * Dependencies: Arena3 (visual), Arena3C (JD overlay), ArenaData.gs backend.
+ * Safe for ES5, scoped to #arena-left only.
+ */
+window.addEventListener('load', function () {
+  if (!window.Arena) {
+    console.warn("⚠️ Arena base not found; Arena3D will wait.");
+    return;
+  }
+
+  (function (A) {
+    A.phase = "3D";
+
+    /** -----------------------------------------------------------------
+     * 1. Helpers
+     * ----------------------------------------------------------------- */
+    function _log(msg){ console.log("🧩 3D:", msg); }
+    function _left(){ return document.getElementById('arena-left'); }
+    function _clearLeft(){ var el=_left(); if(el) el.innerHTML='<div class="arena-loader">Loading company data…</div>'; }
+
+    /** -----------------------------------------------------------------
+     * 2. Public Entry — load job & company info
+     * ----------------------------------------------------------------- */
+    A.loadCompanyBundle = function(jobId, companyId){
+      _log("Loading data for job "+jobId+" / company "+companyId);
+      _clearLeft();
+
+      // --- 1. Fetch the Job first
+      google.script.run.withSuccessHandler(function(job){
+        if(!job){ _left().innerHTML='<div class="arena-card">Job not found.</div>'; return; }
+        A.state.job = job;
+
+        // --- 2. Fetch the company bundle
+        google.script.run.withSuccessHandler(function(bundle){
+          if(!bundle || !bundle.company){
+            _left().innerHTML='<div class="arena-card">Company not found.</div>';
+            return;
+          }
+          A.state.company = bundle.company;
+          A.state.jobsByCompany = bundle.jobs || [];
+          A.state.kpis = bundle.kpis || {};
+          A.state.talent = bundle.talent || [];
+
+          // --- 3. Render visually (uses Arena3’s builders)
+          if(typeof A.renderCompanyPanel === 'function'){
+            A.renderCompanyPanel(A.state.job, A.state.company, A.state.jobsByCompany);
+          }else if(typeof A.renderJob === 'function'){
+            A.renderJob(A.state.job);
+          }
+
+          // --- 4. Auto-open JD Panel if long description exists
+          if (A.state.job && A.state.job.JobDescription) {
+            setTimeout(function(){
+              A.openJDPanel({
+                text: A.state.job.JobDescription,
+                url:  A.state.job.PublicJDURL || ''
+              });
+            }, 500);
+          }
+
+          _log("Company + Job data rendered.");
+        }).getCompanyBundle(companyId);
+      }).getJobById(jobId);
+    };
+
+    /** -----------------------------------------------------------------
+     * 3. Hook into base renderJob (auto-load bundle)
+     * ----------------------------------------------------------------- */
+    var oldRenderJob = A.renderJob;
+    A.renderJob = function(job){
+      oldRenderJob.call(this, job);
+      if(job && job.JobID && job.CompanyID){
+        A.loadCompanyBundle(job.JobID, job.CompanyID);
+      }else{
+        _log("renderJob called without IDs; skipping bundle load.");
+      }
+    };
+
+    console.log("✅ Arena 3D (Data Wiring) loaded");
+  })(window.Arena);
+});
+</script>
